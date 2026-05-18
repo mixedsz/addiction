@@ -1,4 +1,4 @@
-shared_script '@WaveShield/resource/include.lua'
+-- shared_script '@WaveShield/resource/include.lua' -- uncomment if WaveShield is installed
 
 fx_version 'cerulean'
 game 'gta5'

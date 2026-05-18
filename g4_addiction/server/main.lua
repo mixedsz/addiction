@@ -1,9 +1,13 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+local ESX = nil
+
+-- Fetch ESX shared object — works for both legacy (esx:getSharedObject) and
+-- modern (es_extended export) versions of ESX / es_extended.
+TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
 
 -- playerAddictions[source][drugName] = remaining_seconds (internal unit)
 -- The client display uses minutes: remaining_seconds / 60
 -- When remaining_seconds <= 0 → player is in withdrawal (suffering)
-local playerAddictions = {}
+local playerAddictions   = {}
 local playerTimerRunning = {}
 
 -- ─────────────────────────────────────────
@@ -26,8 +30,8 @@ end)
 -- ─────────────────────────────────────────
 
 local function getIdentifier(src)
-    local Player = QBCore.Functions.GetPlayer(src)
-    if Player then return Player.PlayerData.citizenid end
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if xPlayer then return xPlayer.identifier end
     return nil
 end
 
@@ -37,7 +41,7 @@ local function hasAnyAddiction(src)
     return false
 end
 
--- Convert internal seconds → minutes for the client HUD percentage math:
+-- Convert internal seconds → minutes for client HUD percentage math:
 --   percent = ceil( (v / addiction.time_minutes) * 100 )
 local function buildClientData(src)
     local out = {}
@@ -65,7 +69,6 @@ local function loadPlayerAddictions(src)
     )
     if rows then
         for _, row in ipairs(rows) do
-            -- only restore drugs that still exist in config and have time left
             if Config.UsableDrugs[row.drug] and row.remaining_time > 0 then
                 playerAddictions[src][row.drug] = row.remaining_time
             end
@@ -97,9 +100,9 @@ end
 -- Addiction countdown timer (per player)
 -- ─────────────────────────────────────────
 
--- One tick per second. The timer keeps running as long as the player has at
--- least one tracked drug (even if remaining_time is already <= 0, so the
--- client keeps receiving the suffering state until a cure is applied).
+-- One tick per second. Keeps running while the player has any tracked drug
+-- (even when remaining_time <= 0) so the client sees the suffering state
+-- until a cure is applied.
 function startAddictionTimer(src)
     if playerTimerRunning[src] then return end
     playerTimerRunning[src] = true
@@ -110,8 +113,8 @@ function startAddictionTimer(src)
             if not playerAddictions[src] then break end
 
             for drug, remaining in pairs(playerAddictions[src]) do
-                -- countdown but floor at a small negative so the client loop
-                -- keeps showing the suffering state without integer overflow
+                -- floor at -3600 so the client keeps showing suffering state
+                -- without integer overflow on a very long session
                 if remaining > -3600 then
                     playerAddictions[src][drug] = remaining - 1
                 end
@@ -126,22 +129,22 @@ end
 
 -- ─────────────────────────────────────────
 -- Item registration (drugs + medications)
--- Wrapped in a function so it runs on every resource start/restart,
--- guaranteeing every entry in Config is registered — including ones
--- added after the initial deploy.
+-- Called on every resource start so new config entries are always picked up.
+-- After adding a drug to Config just `restart g4_addiction` — no server reboot.
 -- ─────────────────────────────────────────
 
 local function registerItems()
     -- Drugs
     for drugName, drugData in pairs(Config.UsableDrugs) do
-        QBCore.Functions.CreateUseableItem(drugName, function(source)
-            local src = source
-            local Player = QBCore.Functions.GetPlayer(src)
-            if not Player then return end
-            if not Player.Functions.GetItemByName(drugName) then return end
+        ESX.RegisterUsableItem(drugName, function(source)
+            local src     = source
+            local xPlayer = ESX.GetPlayerFromId(src)
+            if not xPlayer then return end
 
-            Player.Functions.RemoveItem(drugName, 1)
-            TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[drugName], 'remove')
+            local item = xPlayer.getInventoryItem(drugName)
+            if not item or item.count <= 0 then return end
+
+            xPlayer.removeInventoryItem(drugName, 1)
 
             if not playerAddictions[src] then playerAddictions[src] = {} end
 
@@ -150,13 +153,13 @@ local function registerItems()
             local gotAddicted     = false
 
             if playerAddictions[src][drugName] then
-                -- Already tracked: refresh timer so the player buys another cycle.
+                -- Already tracked: refresh timer, buying another dose cycle.
                 playerAddictions[src][drugName] = addictionSecs
             elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
                 playerAddictions[src][drugName] = addictionSecs
                 gotAddicted = true
             end
-            -- addiction.chance == 0 → no addiction, effects only
+            -- addiction.chance == 0 → effects only, no addiction tracking
 
             TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
             TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
@@ -167,22 +170,24 @@ local function registerItems()
 
     -- Medications
     -- Config keys are title-cased ("Naloxone"); register lowercase too since
-    -- QBCore inventory item names are conventionally lowercase.
+    -- ESX/ox_inventory item names are conventionally lowercase.
     for medName, curesDrugs in pairs(Config.Medication) do
         local itemName = medName:lower()
 
         local function useMed(source)
-            local src = source
-            local Player = QBCore.Functions.GetPlayer(src)
-            if not Player then return end
+            local src     = source
+            local xPlayer = ESX.GetPlayerFromId(src)
+            if not xPlayer then return end
 
-            local item = Player.Functions.GetItemByName(itemName)
-                      or Player.Functions.GetItemByName(medName)
-            if not item then return end
+            -- Accept either casing (some servers define items as "Naloxone",
+            -- others as "naloxone").
+            local item = xPlayer.getInventoryItem(itemName)
+            if not item or item.count <= 0 then
+                item = xPlayer.getInventoryItem(medName)
+            end
+            if not item or item.count <= 0 then return end
 
-            local usedName = item.name
-            Player.Functions.RemoveItem(usedName, 1)
-            TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[usedName], 'remove')
+            xPlayer.removeInventoryItem(item.name, 1)
 
             if playerAddictions[src] then
                 for _, drug in ipairs(curesDrugs) do
@@ -196,75 +201,60 @@ local function registerItems()
             savePlayerAddictions(src)
         end
 
-        QBCore.Functions.CreateUseableItem(itemName, useMed)
+        ESX.RegisterUsableItem(itemName, useMed)
         if medName ~= itemName then
-            QBCore.Functions.CreateUseableItem(medName, useMed)
+            ESX.RegisterUsableItem(medName, useMed)
         end
     end
 
-    print('[g4_addiction] Registered ' .. (function()
-        local n = 0
-        for _ in pairs(Config.UsableDrugs) do n = n + 1 end
-        return n
-    end)() .. ' drug(s) and ' .. (function()
-        local n = 0
-        for _ in pairs(Config.Medication) do n = n + 1 end
-        return n
-    end)() .. ' medication(s) as useable items.')
+    local drugCount, medCount = 0, 0
+    for _ in pairs(Config.UsableDrugs)  do drugCount = drugCount + 1 end
+    for _ in pairs(Config.Medication)   do medCount  = medCount  + 1 end
+    print(('[g4_addiction] Registered %d drug(s) and %d medication(s) as useable items.'):format(drugCount, medCount))
 end
 
--- Fire on every resource start so a restart after adding new config entries
--- always picks them up without needing a full server restart.
 AddEventHandler('onServerResourceStart', function(resourceName)
     if GetCurrentResourceName() ~= resourceName then return end
-    QBCore = exports['qb-core']:GetCoreObject()
-    registerItems()
+    -- Re-fetch ESX in case it was also restarted
+    TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+    -- Small wait to ensure ESX is fully ready before registering items
+    Citizen.SetTimeout(500, registerItems)
 end)
 
 -- ─────────────────────────────────────────
 -- Player lifecycle events
 -- ─────────────────────────────────────────
 
-AddEventHandler('QBCore:Server:PlayerLoaded', function(Player)
-    local src = Player.PlayerData.source
-    loadPlayerAddictions(src)
+AddEventHandler('esx:playerLoaded', function(playerId, xPlayer, isNew)
+    loadPlayerAddictions(playerId)
 end)
 
--- QBCore fires PlayerUnload before playerDropped so we save twice to be safe
-AddEventHandler('QBCore:Server:PlayerUnload', function(src)
-    savePlayerAddictions(src)
-    playerAddictions[src]     = nil
-    playerTimerRunning[src]   = nil
+AddEventHandler('esx:playerDropped', function(playerId, reason)
+    if playerAddictions[playerId] then
+        savePlayerAddictions(playerId)
+    end
+    playerAddictions[playerId]   = nil
+    playerTimerRunning[playerId] = nil
 end)
 
+-- Safety-save on raw drop in case esx:playerDropped doesn't fire
 AddEventHandler('playerDropped', function()
     local src = source
     if playerAddictions[src] then
         savePlayerAddictions(src)
     end
-    playerAddictions[src]    = nil
-    playerTimerRunning[src]  = nil
+    playerAddictions[src]   = nil
+    playerTimerRunning[src] = nil
 end)
 
 -- ─────────────────────────────────────────
 -- Admin command: /clearaddiction [id]
 -- ─────────────────────────────────────────
 
-QBCore.Commands.Add('clearaddiction', 'Clear all drug addictions for a player (Admin)', {
-    { name = 'id', help = 'Target player server ID' }
-}, true, function(src, args)
-    local Player = QBCore.Functions.GetPlayer(src)
-    if not Player then return end
-
-    local perm = Player.PlayerData.permission
-    if perm ~= 'admin' and perm ~= 'god' then
-        TriggerClientEvent('QBCore:Notify', src, 'You do not have permission.', 'error')
-        return
-    end
-
-    local targetId = tonumber(args[1])
+ESX.RegisterCommand('clearaddiction', 'admin', function(xPlayer, args, showError)
+    local targetId = tonumber(args.id)
     if not targetId then
-        TriggerClientEvent('QBCore:Notify', src, 'Invalid player ID.', 'error')
+        showError('Invalid player ID.')
         return
     end
 
@@ -276,12 +266,16 @@ QBCore.Commands.Add('clearaddiction', 'Clear all drug addictions for a player (A
         MySQL.query('DELETE FROM g4_addiction WHERE identifier = ?', { identifier })
     end
 
-    TriggerClientEvent('QBCore:Notify', src, 'Cleared addictions for player ' .. targetId .. '.', 'success')
-end, 'admin')
+    TriggerClientEvent('esx:showNotification', xPlayer.source,
+        'Cleared addictions for player ' .. targetId .. '.')
+end, false, {
+    help      = 'Clear all drug addictions for a player',
+    arguments = { { name = 'id', help = 'Target player server ID', type = 'number' } }
+})
 
--- Console/RCON variant (src == 0 means server console)
+-- Console/RCON variant
 RegisterCommand('clearaddiction_console', function(src, args)
-    if src ~= 0 then return end  -- console only
+    if src ~= 0 then return end
     local targetId = tonumber(args[1])
     if not targetId then
         print('[g4_addiction] Usage: clearaddiction_console <serverID>')
