@@ -16,12 +16,20 @@
   <div id="app"></div>
 
   <!-- Addiction Creator admin panel (shown via /addictioncreator) -->
+  <!-- Outer wrapper = translucent overlay so the game world shows around the panel -->
   <div id="creator-wrapper"
-       style="display:none;position:fixed;inset:0;z-index:9999;background:#111113">
-    <iframe id="creator-frame"
-            src="./creator.html"
-            style="width:100%;height:100%;border:none">
-    </iframe>
+       style="display:none;position:fixed;inset:0;z-index:9999;
+              align-items:center;justify-content:center;
+              background:rgba(0,0,0,0.55)">
+    <!-- Inner shell gives the panel its size, rounded corners, and border -->
+    <div style="width:82vw;height:86vh;border-radius:12px;overflow:hidden;
+                border:1px solid rgba(255,255,255,0.07);
+                box-shadow:0 24px 64px rgba(0,0,0,0.7)">
+      <iframe id="creator-frame"
+              src="./creator.html"
+              style="width:100%;height:100%;border:none;display:block">
+      </iframe>
+    </div>
   </div>
 
   <script>
@@ -31,8 +39,7 @@
       var frame = document.getElementById('creator-frame');
 
       if (e.data.type === 'openCreator') {
-        wrap.style.display = 'block';
-        // Forward to iframe so it knows to refresh data
+        wrap.style.display = 'flex';   /* flex centres the panel */
         if (frame && frame.contentWindow)
           frame.contentWindow.postMessage({ type: 'creatorOpen' }, '*');
       }
@@ -41,10 +48,8 @@
         wrap.style.display = 'none';
       }
 
-      // iframe requests close (Escape key or Close Panel button)
       if (e.data.type === 'creatorRequestClose') {
         wrap.style.display = 'none';
-        // Notify client to release NUI focus
         fetch('https://g4_addiction/creatorClosed', {
           method: 'POST',
           body: JSON.stringify({})
