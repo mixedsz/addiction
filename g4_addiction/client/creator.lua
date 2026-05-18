@@ -140,3 +140,29 @@ RegisterNetEvent('g4_addiction:syncConfig', function(drugs, meds, immunity, tran
         for k, v in pairs(translations) do Config.Translations[k] = v end
     end
 end)
+
+-- ── First-run preset NUI callbacks ────────────────────────────────────────
+
+RegisterNuiCallback('creatorApplyPreset', function(_, cb)
+    local handlerRef
+    handlerRef = AddEventHandler('g4_addiction:admin:presetDone', function(data)
+        RemoveEventHandler(handlerRef); handlerRef = nil
+        cb(data)
+    end)
+    TriggerServerEvent('g4_addiction:admin:applyPreset')
+    SetTimeout(10000, function()
+        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil; cb({ ok = false, error = 'Timeout' }) end
+    end)
+end)
+
+RegisterNuiCallback('creatorDeclinePreset', function(_, cb)
+    local handlerRef
+    handlerRef = AddEventHandler('g4_addiction:admin:presetDone', function(data)
+        RemoveEventHandler(handlerRef); handlerRef = nil
+        cb({ ok = true })
+    end)
+    TriggerServerEvent('g4_addiction:admin:declinePreset')
+    SetTimeout(6000, function()
+        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil; cb({ ok = true }) end
+    end)
+end)

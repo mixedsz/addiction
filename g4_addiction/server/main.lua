@@ -1,14 +1,89 @@
 local ESX = nil
 
--- Fetch ESX shared object — works for both legacy (esx:getSharedObject) and
--- modern (es_extended export) versions of ESX / es_extended.
 TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
 
 -- playerAddictions[source][drugName] = remaining_seconds (internal unit)
--- The client display uses minutes: remaining_seconds / 60
--- When remaining_seconds <= 0 → player is in withdrawal (suffering)
 local playerAddictions   = {}
 local playerTimerRunning = {}
+
+-- ─────────────────────────────────────────
+-- Preset drug / medication / translation data
+-- These are offered to admins on first run via the creator panel.
+-- ─────────────────────────────────────────
+
+local PRESET = {
+    drugImmunity = 100,
+    drugs = {
+        oxycodone_10mg = {
+            label = "Oxycodone 10mg", animation = 'pill', drugStrength = 6,
+            healthEffects = { armour = 0, health = 10 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "DrugsMichaelAliensFightIn", speedMultiplier = 0.8, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        oxycodone_30mg = {
+            label = "Oxycodone 30mg", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 30 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "RaceTurbo", speedMultiplier = 1.1, walkingStyle = "MOVE_M@DRUNK@moderatedrunk", cameraShakeIntensity = 1.0 }
+        },
+        alg = {
+            label = "ALG", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "RaceTurbo", speedMultiplier = 1.1, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        mdma = {
+            label = "MDMA", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "spectator5", speedMultiplier = 1.2, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        actavis = {
+            label = "Actavis", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 15, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.85, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        tris = {
+            label = "Tris", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 10, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 1.1, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        wockhardt = {
+            label = "Wockhardt", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 7, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.7, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        quagen = {
+            label = "Quagen", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 5, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.7, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        yellow = {
+            label = "Yellow", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 5, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "MenuMGTournamentIn", speedMultiplier = 0.85, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+    },
+    meds = {
+        Naloxone   = { 'oxycodone_10mg', 'oxycodone_30mg', 'actavis', 'tris', 'wockhardt', 'quagen' },
+        Suboxone   = { 'oxycodone_10mg', 'oxycodone_30mg' },
+        Naltrexone = { 'mdma', 'alg', 'yellow' },
+        Methadone  = { 'oxycodone_10mg', 'oxycodone_30mg', 'actavis' },
+    },
+    translations = {
+        notification_header        = "Attention",
+        overdose_text              = "You have just",
+        overdose_highlighted_text  = "Overdosed",
+        overdose_description       = "Your body couldn't handle the amount of drugs that you took...",
+        addiction_text             = "You just got addicted to",
+        addiction_description      = "As the amount of the drug in the body decreases, you will feel worse, in order to cure the addiction, you must get the right type of cure.",
+    },
+}
 
 -- ─────────────────────────────────────────
 -- Database bootstrap
@@ -229,6 +304,9 @@ end)
 
 AddEventHandler('esx:playerLoaded', function(playerId, xPlayer, isNew)
     loadPlayerAddictions(playerId)
+    -- Sync current Config so client-side drug lookups / translations are correct
+    TriggerClientEvent('g4_addiction:syncConfig', playerId,
+        Config.UsableDrugs, Config.Medication, Config.DrugImmunity, Config.Translations)
 end)
 
 AddEventHandler('esx:playerDropped', function(playerId, reason)
@@ -299,10 +377,9 @@ end, true)
 -- ADDICTION CREATOR — admin panel backend
 -- ═════════════════════════════════════════════════════════════════════════
 
--- Tracks which drug / medication keys were loaded from config.json
--- (admin-created). Base config.lua entries are NOT in these sets.
 local adminDrugKeys = {}
 local adminMedKeys  = {}
+local setupDone     = false  -- true once admin has made the first-run preset choice
 
 -- ─────────────────────────────────────────
 -- config.json load / save
@@ -323,6 +400,9 @@ end
 
 function mergeConfigJson()
     local data = readConfigJson()
+
+    -- setup flag: true once admin has completed first-run choice
+    if data.setup then setupDone = true end
 
     if type(data.drugs) == 'table' then
         for k, v in pairs(data.drugs) do
@@ -347,10 +427,17 @@ function mergeConfigJson()
             Config.Translations[k] = v
         end
     end
+
+    -- Always ensure default translations exist so client notifications work
+    -- even before an admin configures them
+    for k, v in pairs(PRESET.translations) do
+        if not Config.Translations[k] then Config.Translations[k] = v end
+    end
 end
 
 local function writeConfigJson()
     local out = {
+        setup        = true,
         drugs        = {},
         meds         = {},
         drugImmunity = Config.DrugImmunity,
@@ -501,6 +588,8 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
         meds         = meds,
         drugImmunity = Config.DrugImmunity,
         translations = Config.Translations,
+        firstRun     = not setupDone,
+        uiColor      = Config.UIColor or '#7c6af7',
     })
 end)
 
@@ -643,4 +732,63 @@ RegisterNetEvent('g4_addiction:admin:saveSettings', function(data)
     broadcastConfigSync()
 
     TriggerClientEvent('g4_addiction:admin:saveSettingsResponse', src, true, nil)
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: first-run preset choice
+-- ─────────────────────────────────────────
+
+local function buildFullDataPayload(src)
+    local drugs = {}
+    for k, v in pairs(Config.UsableDrugs) do
+        local entry = {}
+        for fk, fv in pairs(v) do entry[fk] = fv end
+        if type(v.healthEffects) == 'table' then entry.healthEffects = { armour = v.healthEffects.armour, health = v.healthEffects.health } end
+        if type(v.addiction)     == 'table' then entry.addiction     = { chance = v.addiction.chance, time = v.addiction.time } end
+        if type(v.effect)        == 'table' then entry.effect = {} for ek, ev in pairs(v.effect) do entry.effect[ek] = ev end end
+        entry._source = adminDrugKeys[k] and 'custom' or 'base'
+        drugs[k] = entry
+    end
+    local meds = {}
+    for k, v in pairs(Config.Medication) do
+        meds[k] = { cures = v, _source = adminMedKeys[k] and 'custom' or 'base' }
+    end
+    return {
+        ok           = true,
+        drugs        = drugs,
+        meds         = meds,
+        drugImmunity = Config.DrugImmunity,
+        translations = Config.Translations,
+        uiColor      = Config.UIColor or '#7c6af7',
+    }
+end
+
+RegisterNetEvent('g4_addiction:admin:applyPreset', function()
+    local src = source
+    if not isAdmin(src) then return end
+
+    -- Load all preset data into live Config
+    Config.DrugImmunity = PRESET.drugImmunity
+    for k, v in pairs(PRESET.drugs)         do Config.UsableDrugs[k] = v; adminDrugKeys[k] = true end
+    for k, v in pairs(PRESET.meds)          do Config.Medication[k]  = v; adminMedKeys[k]  = true end
+    for k, v in pairs(PRESET.translations)  do Config.Translations[k] = v end
+
+    setupDone = true
+    writeConfigJson()
+    registerItems()
+    broadcastConfigSync()
+
+    TriggerClientEvent('g4_addiction:admin:presetDone', src, buildFullDataPayload(src))
+    print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' applied preset configuration.')
+end)
+
+RegisterNetEvent('g4_addiction:admin:declinePreset', function()
+    local src = source
+    if not isAdmin(src) then return end
+
+    setupDone = true
+    writeConfigJson()
+
+    TriggerClientEvent('g4_addiction:admin:presetDone', src, { ok = true })
+    print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
 end)

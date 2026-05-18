@@ -398,6 +398,74 @@
       to   { transform: translateX(0);    opacity: 1; }
     }
 
+    /* ── Welcome modal ───────────────────────────  */
+    .welcome-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      z-index: 600;
+      align-items: center;
+      justify-content: center;
+    }
+    .welcome-overlay.show { display: flex; }
+
+    .welcome-box {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 30px 28px 24px;
+      width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    }
+
+    .welcome-box h2 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .welcome-box .sub { font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+
+    .feature-list { display: flex; flex-direction: column; gap: 11px; margin-bottom: 26px; }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 12.5px;
+      color: var(--text);
+    }
+
+    .feature-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: rgba(124,106,247,.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 13px;
+    }
+
+    .feature-item p { line-height: 1.45; padding-top: 4px; }
+
+    .welcome-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding-top: 20px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    /* ── Help page ───────────────────────────────  */
+    .help-section { margin-bottom: 22px; }
+    .help-section h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .help-section h3::after { content: ''; flex: 1; height: 1px; background: var(--card-border); }
+    .help-row { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; align-items: start; margin-bottom: 7px; }
+    .help-key { font-size: 11.5px; font-weight: 700; color: var(--accent); }
+    .help-val { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+    .help-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 8px; }
+    .help-table th { text-align: left; color: var(--muted); font-size: 10.5px; font-weight: 700; padding: 0 10px 8px 0; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--card-border); }
+    .help-table td { padding: 7px 10px 7px 0; border-bottom: 1px solid rgba(42,42,53,.5); vertical-align: top; line-height: 1.45; }
+    .help-table tr:last-child td { border-bottom: none; }
+
     /* ── Misc ─────────────────────────────────── */
     .page { display: none; flex-direction: column; height: 100%; }
     .page.active { display: flex; }
@@ -467,6 +535,13 @@
         </svg>
         Settings
       </div>
+      <div class="nav-item" data-page="help">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Help / Guide
+      </div>
     </div>
 
     <div class="sidebar-footer">
@@ -481,6 +556,10 @@
     <div id="pg-dashboard" class="page active">
       <div class="page-header">
         <div><h2>Dashboard</h2><p>Overview of your addiction configuration</p></div>
+        <button class="btn btn-ghost" onclick="nav('help')" style="margin-top:4px">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Help / Guide
+        </button>
       </div>
       <div class="page-body">
         <div class="stats-grid">
@@ -773,8 +852,121 @@
       </div>
     </div>
 
+    <!-- Help page -->
+    <div id="pg-help" class="page">
+      <div class="page-header">
+        <div><h2>Help &amp; Guide</h2><p>Everything you need to know about creating and configuring drugs</p></div>
+      </div>
+      <div class="page-body">
+        <div class="card">
+          <div class="help-section">
+            <h3>How the System Works</h3>
+            <p style="font-size:12.5px;color:var(--muted);line-height:1.7">
+              When a player uses a drug item from their inventory, the server removes it, triggers the drug animation, applies screen effects, and starts an <strong style="color:var(--text)">addiction timer</strong>. The HUD shows immunity and active addictions. Once the timer expires the player enters <strong style="color:var(--danger)">withdrawal</strong> — movement is impaired and a screen effect plays until they take another dose or use the correct medication.
+            </p>
+          </div>
+
+          <div class="help-section">
+            <h3>Basic Info Fields</h3>
+            <div class="help-row"><span class="help-key">Item Name</span><span class="help-val">The exact inventory item name (e.g. <code>oxycodone_10mg</code>). Must match the item in your ESX items table. Lowercase, no spaces.</span></div>
+            <div class="help-row"><span class="help-key">Display Label</span><span class="help-val">Human-readable name shown in notifications and the HUD (e.g. <em>Oxycodone 10mg</em>).</span></div>
+            <div class="help-row"><span class="help-key">Animation</span><span class="help-val"><strong>pill</strong> – swallowing animation &nbsp;|&nbsp; <strong>smoke</strong> – 10 s smoking scenario &nbsp;|&nbsp; <strong>syringe</strong> – injection with prop &nbsp;|&nbsp; <strong>sniff</strong> – face-palm snorting anim</span></div>
+          </div>
+
+          <div class="help-section">
+            <h3>Drug Strength &amp; Immunity</h3>
+            <div class="help-row"><span class="help-key">Drug Strength</span><span class="help-val">How much this drug drains from the player's immunity pool per active dose. Stack multiple drugs and the total strength adds up.</span></div>
+            <div class="help-row"><span class="help-key">Drug Immunity</span><span class="help-val">(Settings page) The maximum combined strength the player can have before <strong style="color:var(--danger)">overdosing</strong>. Default: 100. If total active strength exceeds this, the ped dies instantly.</span></div>
+            <p style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.6">Example: DrugImmunity = 100, Drug A strength = 60, Drug B strength = 50 → using both = 110 → overdose.</p>
+          </div>
+
+          <div class="help-section">
+            <h3>Health Effects</h3>
+            <div class="help-row"><span class="help-key">Armour Gain</span><span class="help-val">Bullet-proof vest armour added when the drug is taken. 0 = none, 100 = full armour.</span></div>
+            <div class="help-row"><span class="help-key">Health Gain/Loss</span><span class="help-val">HP added (positive) or removed (negative) immediately on use. 0 = no effect.</span></div>
+          </div>
+
+          <div class="help-section">
+            <h3>Addiction</h3>
+            <div class="help-row"><span class="help-key">Chance (%)</span><span class="help-val">Probability the player becomes addicted on <em>first</em> use. 0 = never addicted (effects still apply). 100 = always addicted on first use.</span></div>
+            <div class="help-row"><span class="help-key">Time (minutes)</span><span class="help-val">How long after taking the drug before withdrawal starts. The HUD bar shows the countdown. At 0 the player begins suffering until they redose or use the right medication.</span></div>
+          </div>
+
+          <div class="help-section">
+            <h3>Effects</h3>
+            <div class="help-row"><span class="help-key">Duration (seconds)</span><span class="help-val">How long the visual effects (screen FX, motion blur, speed change, camera shake) last after taking the drug.</span></div>
+            <div class="help-row"><span class="help-key">Speed Multiplier</span><span class="help-val">Movement speed modifier during the effect. <strong>&lt;1.0</strong> = slower (e.g. 0.7 = sluggish), <strong>&gt;1.0</strong> = faster (e.g. 1.2 = stimulant). Max 1.49.</span></div>
+            <div class="help-row"><span class="help-key">Walking Style</span><span class="help-val">An animation clip set applied to the ped's movement. <em>None</em> leaves default walking. Common choices: slightly drunk, moderately drunk, very drunk.</span></div>
+            <div class="help-row"><span class="help-key">Camera Shake</span><span class="help-val">Intensity of the FAMILY5_DRUG_TRIP_SHAKE camera effect. 0 = none, 1 = moderate, 3 = extreme.</span></div>
+          </div>
+
+          <div class="help-section">
+            <h3>Screen FX Reference</h3>
+            <table class="help-table">
+              <thead><tr><th>Name</th><th>Description / Feel</th></tr></thead>
+              <tbody>
+                <tr><td><code>PPPurple</code></td><td>Purple tint — good for lean / downers</td></tr>
+                <tr><td><code>DrugsMichaelAliensFightIn</code></td><td>Strong psychedelic distortion — intense hallucinogens</td></tr>
+                <tr><td><code>DrugsMichaelAliensFight</code></td><td>Sustained alien-fight visuals — mid-trip</td></tr>
+                <tr><td><code>DrugsMichaelAliensFightOut</code></td><td>Fading out of a trip</td></tr>
+                <tr><td><code>DrugsTrevorAliensFightIn</code></td><td>Trevor-style paranoid visuals — meth / crack feel</td></tr>
+                <tr><td><code>RaceTurbo</code></td><td>Tunnel-vision speed blur — stimulants / uppers</td></tr>
+                <tr><td><code>spectator5</code></td><td>Vibrant colour shift — MDMA / ecstasy feel</td></tr>
+                <tr><td><code>MenuMGTournamentIn</code></td><td>Soft yellow wash — mild pills</td></tr>
+                <tr><td><code>DeathFailMPIn</code></td><td>Dark vignette desaturation — used for withdrawal suffering</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="help-section">
+            <h3>Medications</h3>
+            <p style="font-size:12.5px;color:var(--muted);line-height:1.7">
+              A medication is an inventory item that, when used, cures the addictions listed under it. Go to the <strong style="color:var(--text)">Medications</strong> page, create an entry with the item name (e.g. <code>naloxone</code>), and tick which drug addictions it cures. The item must exist in your ESX items table.
+            </p>
+          </div>
+
+          <div class="help-section">
+            <h3>Recommended Starting Values</h3>
+            <div class="help-row"><span class="help-key">Mild drug</span><span class="help-val">Strength 4–6 · Chance 0% · Time 90 min · Duration 20 s · Speed 0.95</span></div>
+            <div class="help-row"><span class="help-key">Medium drug</span><span class="help-val">Strength 8–12 · Chance 25% · Time 60 min · Duration 30 s · Speed 1.1</span></div>
+            <div class="help-row"><span class="help-key">Strong drug</span><span class="help-val">Strength 15–20 · Chance 50% · Time 45 min · Duration 45 s · Speed 0.75</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- .main -->
 </div><!-- #app -->
+
+<!-- Welcome / first-run modal -->
+<div class="welcome-overlay" id="welcome-modal">
+  <div class="welcome-box">
+    <h2>Welcome to Addiction Creator</h2>
+    <p class="sub">Choose how you want to set up your addiction system</p>
+    <div class="feature-list">
+      <div class="feature-item">
+        <span class="feature-icon">💊</span>
+        <p><strong>9 pre-configured drugs</strong> — Oxycodone, MDMA, Actavis, ALG, Tris, Wockhardt, Quagen, Yellow &amp; more with realistic effects</p>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">💉</span>
+        <p><strong>4 medications</strong> — Naloxone, Suboxone, Naltrexone and Methadone, each mapped to the correct addiction type</p>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">✏️</span>
+        <p><strong>Pre-set translations</strong> — overdose and addiction notifications ready to go out of the box</p>
+      </div>
+      <div class="feature-item">
+        <span class="feature-icon">🔧</span>
+        <p><strong>Fully editable</strong> — everything imported from the preset can be changed or deleted at any time</p>
+      </div>
+    </div>
+    <div class="welcome-actions">
+      <button class="btn btn-ghost" onclick="declinePreset()" id="btn-manual">Manual Setup</button>
+      <button class="btn btn-primary" onclick="applyPreset()" id="btn-preset">Use Preset Config</button>
+    </div>
+  </div>
+</div>
 
 <!-- Confirm modal -->
 <div class="modal-overlay" id="confirm-modal">
@@ -834,14 +1026,32 @@ function goCreate() {
   nav('create');
 }
 
+// ── UIColor ───────────────────────────────────────────────────────────────
+function applyUIColor(hex) {
+  if (!hex) return;
+  document.documentElement.style.setProperty('--accent',   hex);
+  document.documentElement.style.setProperty('--accent-h', hex);
+  // Recolour feature icons in welcome modal to match accent
+  document.querySelectorAll('.feature-icon').forEach(el => {
+    el.style.background = hex + '22';
+  });
+}
+
 // ── Load data from server ─────────────────────────────────────────────────
 async function loadData() {
   const d = await nui('creatorGetData');
   if (!d) return;
-  S.drugs       = d.drugs        || {};
-  S.meds        = d.meds         || {};
-  S.immunity    = d.drugImmunity || 100;
+  S.drugs        = d.drugs        || {};
+  S.meds         = d.meds         || {};
+  S.immunity     = d.drugImmunity || 100;
   S.translations = d.translations || {};
+
+  if (d.uiColor) applyUIColor(d.uiColor);
+
+  if (d.firstRun) {
+    document.getElementById('welcome-modal').classList.add('show');
+  }
+
   renderDashboard();
 }
 
@@ -1176,6 +1386,33 @@ function confirm2(title, msg) {
 function confirmResolve(val) {
   document.getElementById('confirm-modal').classList.remove('show');
   if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
+}
+
+// ── First-run preset ─────────────────────────────────────────────────────
+async function applyPreset() {
+  document.getElementById('btn-preset').disabled = true;
+  document.getElementById('btn-preset').textContent = 'Applying…';
+  const res = await nui('creatorApplyPreset');
+  if (res?.ok) {
+    if (res.drugs)        S.drugs        = res.drugs;
+    if (res.meds)         S.meds         = res.meds;
+    if (res.drugImmunity) S.immunity     = res.drugImmunity;
+    if (res.translations) S.translations = res.translations;
+    document.getElementById('welcome-modal').classList.remove('show');
+    renderDashboard();
+    toast('Preset configuration applied — 9 drugs and 4 medications loaded.');
+  } else {
+    toast(res?.error || 'Failed to apply preset.', 'err');
+    document.getElementById('btn-preset').disabled = false;
+    document.getElementById('btn-preset').textContent = 'Use Preset Config';
+  }
+}
+
+async function declinePreset() {
+  document.getElementById('btn-manual').disabled = true;
+  await nui('creatorDeclinePreset');
+  document.getElementById('welcome-modal').classList.remove('show');
+  toast('Manual setup selected — create your first drug to get started.');
 }
 
 // ── Close ─────────────────────────────────────────────────────────────────
