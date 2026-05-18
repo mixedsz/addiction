@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Addiction Creator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #111113;
+      --sidebar:     #16161a;
+      --card:        #1e1e24;
+      --card-border: #2a2a35;
+      --input:       #252530;
+      --input-bd:    #35354a;
+      --accent:      #7c6af7;
+      --accent-h:    #6b58e8;
+      --text:        #e8e8f0;
+      --muted:       #6b6b85;
+      --success:     #4ade80;
+      --danger:      #ef5350;
+      --warn:        #ffa726;
+      --radius:      8px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Layout ──────────────────────────────── */
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      padding: 0 0 20px;
+    }
+
+    .sidebar-brand {
+      padding: 22px 20px 18px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 12px;
+    }
+
+    .sidebar-brand h1 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+    }
+
+    .sidebar-brand p {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .nav-group {
+      padding: 0 12px 4px;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 10px 8px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: background .12s, color .12s;
+      margin-bottom: 1px;
+    }
+
+    .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    .nav-item:hover  { background: rgba(124,106,247,.08); color: var(--text); }
+    .nav-item.active { background: rgba(124,106,247,.14); color: var(--accent); }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 0 12px;
+    }
+
+    .btn-close-panel {
+      width: 100%;
+      padding: 9px;
+      background: rgba(239,83,80,.08);
+      border: 1px solid rgba(239,83,80,.25);
+      border-radius: 6px;
+      color: var(--danger);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s;
+    }
+
+    .btn-close-panel:hover { background: rgba(239,83,80,.16); }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .page-header {
+      padding: 24px 28px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .page-header h2 { font-size: 19px; font-weight: 700; }
+    .page-header p  { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+
+    .page-body {
+      flex: 1;
+      padding: 18px 28px 24px;
+      overflow-y: auto;
+    }
+
+    .page-body::-webkit-scrollbar { width: 4px; }
+    .page-body::-webkit-scrollbar-track { background: transparent; }
+    .page-body::-webkit-scrollbar-thumb { background: var(--input-bd); border-radius: 2px; }
+
+    /* ── Cards ────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card + .card { margin-top: 14px; }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .card-title { font-size: 13px; font-weight: 600; }
+
+    /* ── Stats grid ───────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+
+    .stat-lbl { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 7px; }
+    .stat-val { font-size: 28px; font-weight: 700; line-height: 1; }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+    /* ── Table ────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: 0 14px 11px;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    tbody tr { border-bottom: 1px solid rgba(42,42,53,.6); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,.02); }
+    tbody td { padding: 11px 14px; vertical-align: middle; }
+
+    /* ── Badges ───────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-purple { background: rgba(124,106,247,.15); color: var(--accent); }
+    .badge-green  { background: rgba(74,222,128,.12);  color: var(--success); }
+    .badge-orange { background: rgba(255,167,38,.13);  color: var(--warn); }
+    .badge-red    { background: rgba(239,83,80,.13);   color: var(--danger); }
+    .badge-gray   { background: rgba(107,107,133,.14); color: var(--muted); }
+
+    .src-base   { font-size: 10.5px; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: rgba(107,107,133,.14); color: var(--muted); }
+    .src-custom { font-size: 10.5px; font-weight: 600; padding: 2px 6px; border-radius: 3px; background: rgba(124,106,247,.14); color: var(--accent); }
+
+    /* ── Buttons ──────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background .13s, opacity .13s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+
+    .btn-ghost { background: transparent; border: 1px solid var(--card-border); color: var(--muted); }
+    .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,.04); color: var(--text); }
+
+    .btn-danger { background: rgba(239,83,80,.12); border: 1px solid rgba(239,83,80,.28); color: var(--danger); }
+    .btn-danger:hover:not(:disabled) { background: rgba(239,83,80,.22); }
+
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+    /* ── Forms ────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .fg { display: flex; flex-direction: column; gap: 6px; }
+    .fg.span2 { grid-column: 1 / -1; }
+
+    .fg label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .fg input, .fg select, .fg textarea {
+      background: var(--input);
+      border: 1px solid var(--input-bd);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12.5px;
+      padding: 8px 11px;
+      outline: none;
+      transition: border-color .13s;
+    }
+
+    .fg input:focus, .fg select:focus, .fg textarea:focus { border-color: var(--accent); }
+    .fg input:disabled { opacity: .5; cursor: not-allowed; }
+    .fg select option { background: #1e1e24; }
+
+    .range-row { display: flex; align-items: center; gap: 10px; }
+    .range-row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+    .range-val { min-width: 38px; text-align: right; font-weight: 600; color: var(--accent); font-size: 12.5px; }
+
+    .hint { font-size: 10.5px; color: var(--muted); }
+
+    .form-section {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 18px 0 13px;
+      grid-column: 1 / -1;
+    }
+
+    .form-section::after { content: ''; flex: 1; height: 1px; background: var(--card-border); }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--card-border);
+      grid-column: 1 / -1;
+    }
+
+    /* ── Chips (multi-select) ─────────────────── */
+    .chip-group { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .chip {
+      padding: 5px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--input-bd);
+      background: var(--input);
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .12s;
+      user-select: none;
+    }
+
+    .chip.on { border-color: var(--accent); background: rgba(124,106,247,.12); color: var(--accent); }
+
+    /* ── Confirm modal ────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 340px;
+    }
+
+    .modal-box h3 { font-size: 15px; margin-bottom: 8px; }
+    .modal-box p  { color: var(--muted); font-size: 12.5px; margin-bottom: 22px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Toast ────────────────────────────────── */
+    .toasts {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      animation: toast-in .2s ease;
+      max-width: 280px;
+    }
+
+    .toast.ok  { border-left: 3px solid var(--success); }
+    .toast.err { border-left: 3px solid var(--danger); }
+
+    @keyframes toast-in {
+      from { transform: translateX(16px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+
+    /* ── Misc ─────────────────────────────────── */
+    .page { display: none; flex-direction: column; height: 100%; }
+    .page.active { display: flex; }
+
+    code {
+      background: var(--input);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11.5px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 32px 20px;
+      color: var(--muted);
+      font-size: 12.5px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Sidebar ────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <h1>Addiction Creator</h1>
+      <p>Admin Configuration</p>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" data-page="dashboard">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Dashboard
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Features</div>
+      <div class="nav-item" data-page="drugs">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+        </svg>
+        Drugs
+      </div>
+      <div class="nav-item" data-page="create">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+        Create Drug
+      </div>
+      <div class="nav-item" data-page="medications">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+        </svg>
+        Medications
+      </div>
+      <div class="nav-item" data-page="settings">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+        Settings
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn-close-panel" onclick="closePanel()">Close Panel</button>
+    </div>
+  </nav>
+
+  <!-- ── Content ────────────────────────────── -->
+  <div class="main">
+
+    <!-- Dashboard -->
+    <div id="pg-dashboard" class="page active">
+      <div class="page-header">
+        <div><h2>Dashboard</h2><p>Overview of your addiction configuration</p></div>
+      </div>
+      <div class="page-body">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-lbl">Total Drugs</div>
+            <div class="stat-val" id="s-drugs">—</div>
+            <div class="stat-sub" id="s-drugs-sub">loading...</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Medications</div>
+            <div class="stat-val" id="s-meds">—</div>
+            <div class="stat-sub">types configured</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Drug Immunity</div>
+            <div class="stat-val" id="s-immunity">—</div>
+            <div class="stat-sub">max simultaneous strength</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Configured Drugs</span>
+            <button class="btn btn-primary btn-sm" onclick="goCreate()">+ New Drug</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Item Name</th><th>Label</th><th>Strength</th>
+                <th>Addiction</th><th>Animation</th><th>Source</th>
+              </tr></thead>
+              <tbody id="dash-tbl"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drugs list -->
+    <div id="pg-drugs" class="page">
+      <div class="page-header">
+        <div><h2>Drugs</h2><p>Manage all drug configurations</p></div>
+        <button class="btn btn-primary" onclick="goCreate()">+ New Drug</button>
+      </div>
+      <div class="page-body">
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Item Name</th><th>Label</th><th>Strength</th>
+                <th>Chance</th><th>Duration</th><th>Source</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="drugs-tbl"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create / Edit drug -->
+    <div id="pg-create" class="page">
+      <div class="page-header">
+        <div>
+          <h2 id="form-heading">Create Drug</h2>
+          <p id="form-sub">Add a new drug to the addiction system</p>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="card">
+          <div class="form-grid">
+            <div class="form-section">Basic Info</div>
+
+            <div class="fg">
+              <label>Item Name *</label>
+              <input id="f-key" type="text" placeholder="e.g. cocaine_brick">
+              <span class="hint">Inventory item name — lowercase, no spaces</span>
+            </div>
+            <div class="fg">
+              <label>Display Label *</label>
+              <input id="f-label" type="text" placeholder="e.g. Cocaine Brick">
+            </div>
+            <div class="fg">
+              <label>Animation</label>
+              <select id="f-anim">
+                <option value="pill">Pill</option>
+                <option value="smoke">Smoke</option>
+                <option value="syringe">Syringe</option>
+                <option value="sniff">Sniff</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>Drug Strength</label>
+              <div class="range-row">
+                <input type="range" id="f-strength" min="1" max="50" value="8"
+                       oninput="rv('f-strength','rv-strength')">
+                <span class="range-val" id="rv-strength">8</span>
+              </div>
+              <span class="hint">Removed from immunity per dose. Overdose if total &gt; DrugImmunity.</span>
+            </div>
+
+            <div class="form-section">Health Effects</div>
+
+            <div class="fg">
+              <label>Armour Gain</label>
+              <div class="range-row">
+                <input type="range" id="f-armour" min="0" max="100" value="0"
+                       oninput="rv('f-armour','rv-armour')">
+                <span class="range-val" id="rv-armour">0</span>
+              </div>
+            </div>
+            <div class="fg">
+              <label>Health Gain / Loss</label>
+              <div class="range-row">
+                <input type="range" id="f-health" min="-100" max="100" value="0"
+                       oninput="rv('f-health','rv-health')">
+                <span class="range-val" id="rv-health">0</span>
+              </div>
+            </div>
+
+            <div class="form-section">Addiction</div>
+
+            <div class="fg">
+              <label>Addiction Chance (%)</label>
+              <div class="range-row">
+                <input type="range" id="f-chance" min="0" max="100" value="0"
+                       oninput="rv('f-chance','rv-chance')">
+                <span class="range-val" id="rv-chance">0</span>
+              </div>
+              <span class="hint">0 = no addiction possible</span>
+            </div>
+            <div class="fg">
+              <label>Addiction Time (minutes)</label>
+              <input id="f-time" type="number" value="60" min="1" max="1440">
+              <span class="hint">Time until withdrawal starts after last dose</span>
+            </div>
+
+            <div class="form-section">Effects</div>
+
+            <div class="fg">
+              <label>Duration (seconds)</label>
+              <input id="f-duration" type="number" value="30" min="1" max="3600">
+            </div>
+            <div class="fg">
+              <label>Screen FX</label>
+              <select id="f-sfx" onchange="toggleCustomFX()">
+                <option value="PPPurple">PPPurple</option>
+                <option value="DrugsMichaelAliensFightIn">DrugsMichaelAliensFightIn</option>
+                <option value="DrugsMichaelAliensFight">DrugsMichaelAliensFight</option>
+                <option value="DrugsMichaelAliensFightOut">DrugsMichaelAliensFightOut</option>
+                <option value="DrugsTrevorAliensFightIn">DrugsTrevorAliensFightIn</option>
+                <option value="RaceTurbo">RaceTurbo</option>
+                <option value="spectator5">spectator5</option>
+                <option value="MenuMGTournamentIn">MenuMGTournamentIn</option>
+                <option value="DeathFailMPIn">DeathFailMPIn</option>
+                <option value="custom">— Custom —</option>
+              </select>
+            </div>
+            <div class="fg" id="fg-sfx-custom" style="display:none">
+              <label>Custom Screen FX Name</label>
+              <input id="f-sfx-custom" type="text" placeholder="ExactAnimpostfxName">
+            </div>
+            <div class="fg">
+              <label>Speed Multiplier</label>
+              <div class="range-row">
+                <input type="range" id="f-speed" min="0.50" max="1.49" step="0.01" value="1.00"
+                       oninput="rv('f-speed','rv-speed',2)">
+                <span class="range-val" id="rv-speed">1.00</span>
+              </div>
+              <span class="hint">&lt;1.0 = slower &nbsp;|&nbsp; &gt;1.0 = faster (max 1.49)</span>
+            </div>
+            <div class="fg">
+              <label>Walking Style</label>
+              <select id="f-walk">
+                <option value="">None</option>
+                <option value="MOVE_M@DRUNK@moderatedrunk">Moderately Drunk</option>
+                <option value="MOVE_M@DRUNK@SLIGHTLYDRUNK">Slightly Drunk</option>
+                <option value="MOVE_M@DRUNK@verydrunk">Very Drunk</option>
+                <option value="MOVE_M@PRISON@CRIPS_PRIS">Prison Walk</option>
+                <option value="move_f@flee@a">Fleeing</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>Camera Shake Intensity</label>
+              <div class="range-row">
+                <input type="range" id="f-shake" min="0" max="3" step="0.1" value="1.0"
+                       oninput="rv('f-shake','rv-shake',1)">
+                <span class="range-val" id="rv-shake">1.0</span>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-ghost" onclick="nav('drugs')">Cancel</button>
+              <button class="btn btn-primary" onclick="submitDrug()">Save Drug</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Medications -->
+    <div id="pg-medications" class="page">
+      <div class="page-header">
+        <div><h2>Medications</h2><p>Configure which medications cure which addictions</p></div>
+        <button class="btn btn-primary" onclick="showMedForm()">+ New Medication</button>
+      </div>
+      <div class="page-body">
+        <div class="card" id="med-form-card" style="display:none; margin-bottom:14px">
+          <div class="card-header">
+            <span class="card-title" id="med-form-title">New Medication</span>
+          </div>
+          <div class="form-grid">
+            <div class="fg">
+              <label>Medication Name *</label>
+              <input id="m-name" type="text" placeholder="e.g. Naloxone">
+              <span class="hint">Inventory item name used by this medication</span>
+            </div>
+            <div class="fg">
+              <label>Cures These Addictions</label>
+              <div class="chip-group" id="m-cures"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-ghost" onclick="hideMedForm()">Cancel</button>
+              <button class="btn btn-primary" onclick="submitMed()">Save Medication</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Name</th><th>Cures</th><th>Source</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="meds-tbl"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="pg-settings" class="page">
+      <div class="page-header">
+        <div><h2>Settings</h2><p>Global addiction system configuration</p></div>
+      </div>
+      <div class="page-body">
+        <div class="card" style="max-width:580px">
+          <div class="form-grid">
+            <div class="form-section">General</div>
+            <div class="fg span2">
+              <label>Drug Immunity</label>
+              <div class="range-row">
+                <input type="range" id="s-immunity" min="1" max="500" value="100"
+                       oninput="rv('s-immunity','rv-immunity')">
+                <span class="range-val" id="rv-immunity">100</span>
+              </div>
+              <span class="hint">Maximum total drug strength a player can have before overdosing</span>
+            </div>
+
+            <div class="form-section">Translations</div>
+
+            <div class="fg">
+              <label>Notification Header</label>
+              <input id="s-t-header" type="text" value="Attention">
+            </div>
+            <div class="fg">
+              <label>Overdose Text</label>
+              <input id="s-t-od-text" type="text" value="You have just">
+            </div>
+            <div class="fg">
+              <label>Overdose Highlighted Word</label>
+              <input id="s-t-od-hl" type="text" value="Overdosed">
+            </div>
+            <div class="fg">
+              <label>Addiction Text</label>
+              <input id="s-t-add-text" type="text" value="You just got addicted to">
+            </div>
+            <div class="fg span2">
+              <label>Overdose Description</label>
+              <input id="s-t-od-desc" type="text">
+            </div>
+            <div class="fg span2">
+              <label>Addiction Description</label>
+              <input id="s-t-add-desc" type="text">
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="submitSettings()">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- .main -->
+</div><!-- #app -->
+
+<!-- Confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-box">
+    <h3 id="conf-title">Confirm</h3>
+    <p id="conf-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="confirmResolve(false)">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmResolve(true)">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+const S = {
+  drugs:       {},   // key → drugData (includes ._source = 'base'|'custom')
+  meds:        {},   // name → { cures: [], _source }
+  immunity:    100,
+  translations: {},
+  editingDrug: null,
+  editingMed:  null,
+};
+
+// ── NUI fetch helper ──────────────────────────────────────────────────────
+const nui = (cb, data = {}) =>
+  fetch(`https://g4_addiction/${cb}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(r => r.json()).catch(() => ({ ok: false, error: 'Network error' }));
+
+// ── Navigation ────────────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(`pg-${page}`).classList.add('active');
+  const ni = document.querySelector(`[data-page="${page}"]`);
+  if (ni) ni.classList.add('active');
+
+  if (page === 'dashboard')   renderDashboard();
+  if (page === 'drugs')       renderDrugs();
+  if (page === 'medications') renderMeds();
+  if (page === 'settings')    loadSettings();
+  if (page === 'create')      resetForm();
+}
+
+document.querySelectorAll('.nav-item').forEach(el =>
+  el.addEventListener('click', () => nav(el.dataset.page))
+);
+
+function goCreate() {
+  resetForm();
+  nav('create');
+}
+
+// ── Load data from server ─────────────────────────────────────────────────
+async function loadData() {
+  const d = await nui('creatorGetData');
+  if (!d) return;
+  S.drugs       = d.drugs        || {};
+  S.meds        = d.meds         || {};
+  S.immunity    = d.drugImmunity || 100;
+  S.translations = d.translations || {};
+  renderDashboard();
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const drugKeys   = Object.keys(S.drugs);
+  const customCount = drugKeys.filter(k => S.drugs[k]._source === 'custom').length;
+
+  document.getElementById('s-drugs').textContent = drugKeys.length;
+  document.getElementById('s-drugs-sub').textContent =
+    customCount > 0
+      ? `${drugKeys.length - customCount} base + ${customCount} custom`
+      : `${drugKeys.length} from config.lua`;
+  document.getElementById('s-meds').textContent    = Object.keys(S.meds).length;
+  document.getElementById('s-immunity').textContent = S.immunity;
+
+  const tbody = document.getElementById('dash-tbl');
+  tbody.innerHTML = '';
+  if (!drugKeys.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No drugs configured</td></tr>`;
+    return;
+  }
+  for (const [k, d] of Object.entries(S.drugs)) {
+    tbody.innerHTML += `
+      <tr>
+        <td><code>${k}</code></td>
+        <td>${d.label || k}</td>
+        <td><span class="badge badge-orange">${d.drugStrength}</span></td>
+        <td>${d.addiction?.chance > 0
+          ? `<span class="badge badge-red">${d.addiction.chance}%</span>`
+          : `<span class="badge badge-gray">None</span>`}</td>
+        <td><span class="badge badge-purple">${d.animation || 'pill'}</span></td>
+        <td><span class="${d._source === 'custom' ? 'src-custom' : 'src-base'}">${d._source === 'custom' ? 'Custom' : 'Base'}</span></td>
+      </tr>`;
+  }
+}
+
+// ── Drugs table ───────────────────────────────────────────────────────────
+function renderDrugs() {
+  const tbody = document.getElementById('drugs-tbl');
+  tbody.innerHTML = '';
+  const entries = Object.entries(S.drugs);
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No drugs configured</td></tr>`;
+    return;
+  }
+  for (const [k, d] of entries) {
+    const custom = d._source === 'custom';
+    tbody.innerHTML += `
+      <tr>
+        <td><code>${k}</code></td>
+        <td>${d.label || k}</td>
+        <td>${d.drugStrength}</td>
+        <td>${d.addiction?.chance ?? 0}%</td>
+        <td>${d.effect?.duration ?? 30}s</td>
+        <td><span class="${custom ? 'src-custom' : 'src-base'}">${custom ? 'Custom' : 'Base'}</span></td>
+        <td>
+          <div style="display:flex;gap:6px">
+            ${custom
+              ? `<button class="btn btn-ghost btn-sm" onclick="editDrug('${k}')">Edit</button>
+                 <button class="btn btn-danger btn-sm" onclick="deleteDrug('${k}')">Delete</button>`
+              : `<span style="color:var(--muted);font-size:11px">Read-only</span>`}
+          </div>
+        </td>
+      </tr>`;
+  }
+}
+
+// ── Drug form ─────────────────────────────────────────────────────────────
+function resetForm(key = null) {
+  S.editingDrug = key;
+  const editing = key ? S.drugs[key] : null;
+  document.getElementById('form-heading').textContent = key ? 'Edit Drug' : 'Create Drug';
+  document.getElementById('form-sub').textContent     = key ? `Editing: ${key}` : 'Add a new drug to the addiction system';
+
+  const f = id => document.getElementById(id);
+  f('f-key').value    = key || '';
+  f('f-key').disabled = !!key;
+  f('f-label').value  = editing?.label || '';
+  f('f-anim').value   = editing?.animation || 'pill';
+
+  setRange('f-strength', 'rv-strength', editing?.drugStrength ?? 8);
+  setRange('f-armour',   'rv-armour',   editing?.healthEffects?.armour ?? 0);
+  setRange('f-health',   'rv-health',   editing?.healthEffects?.health ?? 0);
+  setRange('f-chance',   'rv-chance',   editing?.addiction?.chance ?? 0);
+  f('f-time').value     = editing?.addiction?.time ?? 60;
+  f('f-duration').value = editing?.effect?.duration ?? 30;
+
+  const sfx = editing?.effect?.screenFX || 'PPPurple';
+  const sel  = f('f-sfx');
+  const known = Array.from(sel.options).map(o => o.value);
+  if (known.includes(sfx)) {
+    sel.value = sfx;
+    f('fg-sfx-custom').style.display = 'none';
+  } else {
+    sel.value = 'custom';
+    f('f-sfx-custom').value = sfx;
+    f('fg-sfx-custom').style.display = '';
+  }
+
+  setRange('f-speed', 'rv-speed', editing?.effect?.speedMultiplier ?? 1.0, 2);
+  f('f-walk').value = editing?.effect?.walkingStyle || '';
+  setRange('f-shake', 'rv-shake', editing?.effect?.cameraShakeIntensity ?? 1.0, 1);
+}
+
+function editDrug(key) {
+  resetForm(key);
+  nav('create');
+}
+
+async function submitDrug() {
+  const key   = S.editingDrug || document.getElementById('f-key').value.trim().toLowerCase().replace(/\s+/g,'_');
+  const label = document.getElementById('f-label').value.trim();
+  if (!key)   { toast('Item name is required.', 'err'); return; }
+  if (!label) { toast('Display label is required.', 'err'); return; }
+
+  const sfxEl = document.getElementById('f-sfx');
+  const sfx   = sfxEl.value === 'custom'
+    ? document.getElementById('f-sfx-custom').value.trim()
+    : sfxEl.value;
+
+  const walk = document.getElementById('f-walk').value || null;
+
+  const drug = {
+    label,
+    animation:   document.getElementById('f-anim').value,
+    drugStrength: +document.getElementById('f-strength').value,
+    healthEffects: {
+      armour: +document.getElementById('f-armour').value,
+      health: +document.getElementById('f-health').value,
+    },
+    addiction: {
+      chance: +document.getElementById('f-chance').value,
+      time:   +document.getElementById('f-time').value,
+    },
+    effect: {
+      duration:             +document.getElementById('f-duration').value,
+      screenFX:             sfx,
+      speedMultiplier:      +parseFloat(document.getElementById('f-speed').value).toFixed(2),
+      walkingStyle:         walk,
+      cameraShakeIntensity: +parseFloat(document.getElementById('f-shake').value).toFixed(1),
+    },
+  };
+
+  const res = await nui('creatorSaveDrug', { key, drug });
+  if (res?.ok) {
+    S.drugs[key] = { ...drug, _source: 'custom' };
+    toast(`Drug "${label}" saved.`);
+    nav('drugs');
+  } else {
+    toast(res?.error || 'Save failed.', 'err');
+  }
+}
+
+async function deleteDrug(key) {
+  const confirmed = await confirm2(`Delete drug "${key}"?`, 'This cannot be undone. Players may lose references to this drug.');
+  if (!confirmed) return;
+  const res = await nui('creatorDeleteDrug', { key });
+  if (res?.ok) {
+    delete S.drugs[key];
+    toast(`Drug "${key}" deleted.`);
+    renderDrugs();
+    renderDashboard();
+  } else {
+    toast(res?.error || 'Delete failed.', 'err');
+  }
+}
+
+// ── Medications ───────────────────────────────────────────────────────────
+function renderMeds() {
+  const tbody = document.getElementById('meds-tbl');
+  tbody.innerHTML = '';
+  const entries = Object.entries(S.meds);
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">No medications configured</td></tr>`;
+    return;
+  }
+  for (const [name, m] of entries) {
+    const custom  = m._source === 'custom';
+    const cureHtml = (m.cures || []).map(d =>
+      `<span class="badge badge-purple" style="margin-right:4px">${d}</span>`
+    ).join('') || '<span style="color:var(--muted)">—</span>';
+
+    tbody.innerHTML += `
+      <tr>
+        <td><strong>${name}</strong></td>
+        <td>${cureHtml}</td>
+        <td><span class="${custom ? 'src-custom' : 'src-base'}">${custom ? 'Custom' : 'Base'}</span></td>
+        <td>
+          <div style="display:flex;gap:6px">
+            ${custom
+              ? `<button class="btn btn-ghost btn-sm" onclick="editMed('${name}')">Edit</button>
+                 <button class="btn btn-danger btn-sm" onclick="deleteMed('${name}')">Delete</button>`
+              : `<span style="color:var(--muted);font-size:11px">Read-only</span>`}
+          </div>
+        </td>
+      </tr>`;
+  }
+}
+
+function buildCureChips(selected = []) {
+  const cont = document.getElementById('m-cures');
+  cont.innerHTML = '';
+  for (const k of Object.keys(S.drugs)) {
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (selected.includes(k) ? ' on' : '');
+    chip.textContent = k;
+    chip.dataset.val = k;
+    chip.onclick = () => chip.classList.toggle('on');
+    cont.appendChild(chip);
+  }
+  if (!Object.keys(S.drugs).length) {
+    cont.innerHTML = '<span style="color:var(--muted);font-size:11.5px">No drugs configured yet</span>';
+  }
+}
+
+function showMedForm(name = null) {
+  S.editingMed = name;
+  document.getElementById('med-form-title').textContent = name ? `Edit: ${name}` : 'New Medication';
+  document.getElementById('m-name').value    = name || '';
+  document.getElementById('m-name').disabled = !!name;
+  buildCureChips(name ? (S.meds[name]?.cures || []) : []);
+  document.getElementById('med-form-card').style.display = '';
+}
+
+function hideMedForm() {
+  document.getElementById('med-form-card').style.display = 'none';
+  S.editingMed = null;
+}
+
+function editMed(name) { showMedForm(name); }
+
+async function submitMed() {
+  const name  = S.editingMed || document.getElementById('m-name').value.trim();
+  if (!name) { toast('Medication name is required.', 'err'); return; }
+  const cures = Array.from(document.querySelectorAll('#m-cures .chip.on')).map(c => c.dataset.val);
+
+  const res = await nui('creatorSaveMedication', { name, cures });
+  if (res?.ok) {
+    S.meds[name] = { cures, _source: 'custom' };
+    toast(`Medication "${name}" saved.`);
+    hideMedForm();
+    renderMeds();
+  } else {
+    toast(res?.error || 'Save failed.', 'err');
+  }
+}
+
+async function deleteMed(name) {
+  const confirmed = await confirm2(`Delete medication "${name}"?`, 'This cannot be undone.');
+  if (!confirmed) return;
+  const res = await nui('creatorDeleteMedication', { name });
+  if (res?.ok) {
+    delete S.meds[name];
+    toast(`Medication "${name}" deleted.`);
+    renderMeds();
+  } else {
+    toast(res?.error || 'Delete failed.', 'err');
+  }
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────
+function loadSettings() {
+  setRange('s-immunity', 'rv-immunity', S.immunity);
+  const t = S.translations || {};
+  document.getElementById('s-t-header').value   = t.notification_header       || 'Attention';
+  document.getElementById('s-t-od-text').value  = t.overdose_text             || 'You have just';
+  document.getElementById('s-t-od-hl').value    = t.overdose_highlighted_text || 'Overdosed';
+  document.getElementById('s-t-add-text').value = t.addiction_text            || 'You just got addicted to';
+  document.getElementById('s-t-od-desc').value  = t.overdose_description      || '';
+  document.getElementById('s-t-add-desc').value = t.addiction_description     || '';
+}
+
+async function submitSettings() {
+  const payload = {
+    drugImmunity: +document.getElementById('s-immunity').value,
+    translations: {
+      notification_header:       document.getElementById('s-t-header').value,
+      overdose_text:             document.getElementById('s-t-od-text').value,
+      overdose_highlighted_text: document.getElementById('s-t-od-hl').value,
+      addiction_text:            document.getElementById('s-t-add-text').value,
+      overdose_description:      document.getElementById('s-t-od-desc').value,
+      addiction_description:     document.getElementById('s-t-add-desc').value,
+    },
+  };
+  const res = await nui('creatorSaveSettings', payload);
+  if (res?.ok) {
+    S.immunity     = payload.drugImmunity;
+    S.translations = payload.translations;
+    toast('Settings saved.');
+  } else {
+    toast(res?.error || 'Save failed.', 'err');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function rv(inputId, valId, decimals = 0) {
+  const v = parseFloat(document.getElementById(inputId).value);
+  document.getElementById(valId).textContent = v.toFixed(decimals);
+}
+
+function setRange(inputId, valId, value, decimals = 0) {
+  const inp = document.getElementById(inputId);
+  const val = document.getElementById(valId);
+  if (!inp || !val) return;
+  inp.value = value;
+  val.textContent = parseFloat(value).toFixed(decimals);
+}
+
+function toggleCustomFX() {
+  const show = document.getElementById('f-sfx').value === 'custom';
+  document.getElementById('fg-sfx-custom').style.display = show ? '' : 'none';
+}
+
+function toast(msg, type = 'ok') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+let _confirmResolve = null;
+function confirm2(title, msg) {
+  return new Promise(res => {
+    _confirmResolve = res;
+    document.getElementById('conf-title').textContent = title;
+    document.getElementById('conf-msg').textContent   = msg;
+    document.getElementById('confirm-modal').classList.add('show');
+  });
+}
+function confirmResolve(val) {
+  document.getElementById('confirm-modal').classList.remove('show');
+  if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
+}
+
+// ── Close ─────────────────────────────────────────────────────────────────
+function closePanel() {
+  // Tell parent to hide overlay and release NUI focus
+  window.parent.postMessage({ type: 'creatorRequestClose' }, '*');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePanel();
+});
+
+// ── Init: request data when panel opens ───────────────────────────────────
+window.addEventListener('message', e => {
+  if (e.data?.type === 'creatorOpen') loadData();
+});
+
+// Also try on first load in case the message already fired
+loadData();
+</script>
+</body>
+</html>
