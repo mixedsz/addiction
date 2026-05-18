@@ -1,5 +1,7 @@
 Config = {}
 
+Config.AdminGroups = { 'admin', 'superadmin' } -- ESX groups that can access the Addiction Creator panel
+
 Config.DrugImmunity = 100 -- how much the player can withstand the drug acting at the same time (drugStrength)
 
 Config.UsableDrugs = {

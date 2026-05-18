@@ -374,7 +374,10 @@ local function isAdmin(src)
     local xPlayer = ESX.GetPlayerFromId(src)
     if not xPlayer then return false end
     local g = xPlayer.getGroup()
-    return g == 'admin' or g == 'superadmin'
+    for _, allowed in ipairs(Config.AdminGroups) do
+        if g == allowed then return true end
+    end
+    return false
 end
 
 -- Register a single drug as a useable item (used when admin creates a new one live)
