@@ -125,84 +125,101 @@ function startAddictionTimer(src)
 end
 
 -- ─────────────────────────────────────────
--- Drug item registration
+-- Item registration (drugs + medications)
+-- Wrapped in a function so it runs on every resource start/restart,
+-- guaranteeing every entry in Config is registered — including ones
+-- added after the initial deploy.
 -- ─────────────────────────────────────────
 
-for drugName, drugData in pairs(Config.UsableDrugs) do
-    QBCore.Functions.CreateUseableItem(drugName, function(source)
-        local src = source
-        local Player = QBCore.Functions.GetPlayer(src)
-        if not Player then return end
-        if not Player.Functions.GetItemByName(drugName) then return end
+local function registerItems()
+    -- Drugs
+    for drugName, drugData in pairs(Config.UsableDrugs) do
+        QBCore.Functions.CreateUseableItem(drugName, function(source)
+            local src = source
+            local Player = QBCore.Functions.GetPlayer(src)
+            if not Player then return end
+            if not Player.Functions.GetItemByName(drugName) then return end
 
-        Player.Functions.RemoveItem(drugName, 1)
-        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[drugName], 'remove')
+            Player.Functions.RemoveItem(drugName, 1)
+            TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[drugName], 'remove')
 
-        if not playerAddictions[src] then playerAddictions[src] = {} end
+            if not playerAddictions[src] then playerAddictions[src] = {} end
 
-        local addictionSecs  = drugData.addiction.time * 60  -- config time is in minutes
-        local addictionChance = drugData.addiction.chance
-        local gotAddicted    = false
+            local addictionSecs   = drugData.addiction.time * 60
+            local addictionChance = drugData.addiction.chance
+            local gotAddicted     = false
 
-        if playerAddictions[src][drugName] then
-            -- Already tracked: refresh the withdrawal timer so the player
-            -- has bought themselves another full cycle before suffering hits.
-            playerAddictions[src][drugName] = addictionSecs
-        elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
-            -- First use rolled positive for addiction
-            playerAddictions[src][drugName] = addictionSecs
-            gotAddicted = true
-        end
-        -- addiction.chance == 0 → drug produces no addiction, just effects
-
-        TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
-        TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
-
-        startAddictionTimer(src)
-    end)
-end
-
--- ─────────────────────────────────────────
--- Medication item registration
--- ─────────────────────────────────────────
-
--- Config.Medication keys are title-cased ("Naloxone") but inventory item names
--- are conventionally lowercase, so we register both spellings.
-for medName, curesDrugs in pairs(Config.Medication) do
-    local itemName = medName:lower()
-
-    local function useMed(source)
-        local src = source
-        local Player = QBCore.Functions.GetPlayer(src)
-        if not Player then return end
-
-        -- accept either casing from the inventory
-        local item = Player.Functions.GetItemByName(itemName)
-                   or Player.Functions.GetItemByName(medName)
-        if not item then return end
-
-        local usedName = item.name
-        Player.Functions.RemoveItem(usedName, 1)
-        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[usedName], 'remove')
-
-        if playerAddictions[src] then
-            for _, drug in ipairs(curesDrugs) do
-                playerAddictions[src][drug] = nil
+            if playerAddictions[src][drugName] then
+                -- Already tracked: refresh timer so the player buys another cycle.
+                playerAddictions[src][drugName] = addictionSecs
+            elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
+                playerAddictions[src][drugName] = addictionSecs
+                gotAddicted = true
             end
+            -- addiction.chance == 0 → no addiction, effects only
+
+            TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
+            TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
+
+            startAddictionTimer(src)
+        end)
+    end
+
+    -- Medications
+    -- Config keys are title-cased ("Naloxone"); register lowercase too since
+    -- QBCore inventory item names are conventionally lowercase.
+    for medName, curesDrugs in pairs(Config.Medication) do
+        local itemName = medName:lower()
+
+        local function useMed(source)
+            local src = source
+            local Player = QBCore.Functions.GetPlayer(src)
+            if not Player then return end
+
+            local item = Player.Functions.GetItemByName(itemName)
+                      or Player.Functions.GetItemByName(medName)
+            if not item then return end
+
+            local usedName = item.name
+            Player.Functions.RemoveItem(usedName, 1)
+            TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[usedName], 'remove')
+
+            if playerAddictions[src] then
+                for _, drug in ipairs(curesDrugs) do
+                    playerAddictions[src][drug] = nil
+                end
+            end
+
+            TriggerClientEvent('g4_addiction:useMedication', src)
+            TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
+
+            savePlayerAddictions(src)
         end
 
-        TriggerClientEvent('g4_addiction:useMedication', src)
-        TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
-
-        savePlayerAddictions(src)
+        QBCore.Functions.CreateUseableItem(itemName, useMed)
+        if medName ~= itemName then
+            QBCore.Functions.CreateUseableItem(medName, useMed)
+        end
     end
 
-    QBCore.Functions.CreateUseableItem(itemName, useMed)
-    -- also register title-case variant if different (e.g. "Naloxone" vs "naloxone")
-    if medName ~= itemName then
-        QBCore.Functions.CreateUseableItem(medName, useMed)
-    end
+    print('[g4_addiction] Registered ' .. (function()
+        local n = 0
+        for _ in pairs(Config.UsableDrugs) do n = n + 1 end
+        return n
+    end)() .. ' drug(s) and ' .. (function()
+        local n = 0
+        for _ in pairs(Config.Medication) do n = n + 1 end
+        return n
+    end)() .. ' medication(s) as useable items.')
 end
+
+-- Fire on every resource start so a restart after adding new config entries
+-- always picks them up without needing a full server restart.
+AddEventHandler('onServerResourceStart', function(resourceName)
+    if GetCurrentResourceName() ~= resourceName then return end
+    QBCore = exports['qb-core']:GetCoreObject()
+    registerItems()
+end)
 
 -- ─────────────────────────────────────────
 -- Player lifecycle events
