@@ -91,7 +91,7 @@ local PRESET = {
 
 MySQL.ready(function()
     MySQL.query([[
-        CREATE TABLE IF NOT EXISTS `g4_addiction` (
+        CREATE TABLE IF NOT EXISTS `flake_addiction` (
             `identifier`     VARCHAR(60)  NOT NULL,
             `drug`           VARCHAR(50)  NOT NULL,
             `remaining_time` INT          NOT NULL DEFAULT 0,
@@ -139,7 +139,7 @@ local function loadPlayerAddictions(src)
     playerAddictions[src] = {}
 
     local rows = MySQL.query.await(
-        'SELECT drug, remaining_time FROM g4_addiction WHERE identifier = ?',
+        'SELECT drug, remaining_time FROM flake_addiction WHERE identifier = ?',
         { identifier }
     )
     if rows then
@@ -150,7 +150,7 @@ local function loadPlayerAddictions(src)
         end
     end
 
-    TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
+    TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
     startAddictionTimer(src)
 end
 
@@ -158,14 +158,14 @@ local function savePlayerAddictions(src)
     local identifier = getIdentifier(src)
     if not identifier then return end
 
-    MySQL.query('DELETE FROM g4_addiction WHERE identifier = ?', { identifier })
+    MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
 
     if not playerAddictions[src] then return end
 
     for drug, remaining in pairs(playerAddictions[src]) do
         -- persist negative values too so withdrawal state survives relog
         MySQL.query(
-            'INSERT INTO g4_addiction (identifier, drug, remaining_time) VALUES (?, ?, ?)',
+            'INSERT INTO flake_addiction (identifier, drug, remaining_time) VALUES (?, ?, ?)',
             { identifier, drug, math.floor(remaining) }
         )
     end
@@ -195,7 +195,7 @@ function startAddictionTimer(src)
                 end
             end
 
-            TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
         end
 
         playerTimerRunning[src] = nil
@@ -205,7 +205,7 @@ end
 -- ─────────────────────────────────────────
 -- Item registration (drugs + medications)
 -- Called on every resource start so new config entries are always picked up.
--- After adding a drug to Config just `restart g4_addiction` — no server reboot.
+-- After adding a drug to Config just `restart flake_addiction` — no server reboot.
 -- ─────────────────────────────────────────
 
 local function registerItems()
@@ -215,18 +215,18 @@ local function registerItems()
             local src     = source
             local xPlayer = ESX.GetPlayerFromId(src)
             if not xPlayer then
-                print(('[g4_addiction] useDrug: no xPlayer for src %d'):format(src))
+                print(('[flake_addiction] useDrug: no xPlayer for src %d'):format(src))
                 return
             end
 
             local item = xPlayer.getInventoryItem(drugName)
             if not item or item.count <= 0 then
-                print(('[g4_addiction] useDrug: %s has no %s in inventory'):format(GetPlayerName(src), drugName))
+                print(('[flake_addiction] useDrug: %s has no %s in inventory'):format(GetPlayerName(src), drugName))
                 return
             end
 
             if not drugData or not drugData.addiction then
-                print(('[g4_addiction] useDrug: drugData missing for %s — try restarting the resource'):format(drugName))
+                print(('[flake_addiction] useDrug: drugData missing for %s — try restarting the resource'):format(drugName))
                 return
             end
 
@@ -245,10 +245,10 @@ local function registerItems()
                 gotAddicted = true
             end
 
-            print(('[g4_addiction] %s used %s (addicted: %s)'):format(GetPlayerName(src), drugName, tostring(gotAddicted)))
+            print(('[flake_addiction] %s used %s (addicted: %s)'):format(GetPlayerName(src), drugName, tostring(gotAddicted)))
 
-            TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
-            TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
+            TriggerClientEvent('flake_addiction:useDrug', src, drugName, gotAddicted)
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), true)
 
             startAddictionTimer(src)
         end)
@@ -281,8 +281,8 @@ local function registerItems()
                 end
             end
 
-            TriggerClientEvent('g4_addiction:useMedication', src)
-            TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
+            TriggerClientEvent('flake_addiction:useMedication', src)
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
 
             savePlayerAddictions(src)
         end
@@ -296,7 +296,7 @@ local function registerItems()
     local drugCount, medCount = 0, 0
     for _ in pairs(Config.UsableDrugs)  do drugCount = drugCount + 1 end
     for _ in pairs(Config.Medication)   do medCount  = medCount  + 1 end
-    print(('[g4_addiction] Registered %d drug(s) and %d medication(s) as useable items.'):format(drugCount, medCount))
+    print(('[flake_addiction] Registered %d drug(s) and %d medication(s) as useable items.'):format(drugCount, medCount))
 end
 
 AddEventHandler('onServerResourceStart', function(resourceName)
@@ -308,15 +308,15 @@ end)
 
 -- Each client fires this on their own script start, guaranteeing they
 -- get the current Config regardless of server-broadcast timing.
-RegisterNetEvent('g4_addiction:requestSync', function()
+RegisterNetEvent('flake_addiction:requestSync', function()
     local src = source
-    TriggerClientEvent('g4_addiction:syncConfig', src,
+    TriggerClientEvent('flake_addiction:syncConfig', src,
         Config.UsableDrugs,
         Config.Medication,
         Config.DrugImmunity,
         Config.Translations
     )
-    print(('[g4_addiction] Config synced to %s on script init (%d drug(s))'):format(
+    print(('[flake_addiction] Config synced to %s on script init (%d drug(s))'):format(
         GetPlayerName(src),
         (function() local n=0; for _ in pairs(Config.UsableDrugs) do n=n+1 end; return n end)()
     ))
@@ -329,7 +329,7 @@ end)
 AddEventHandler('esx:playerLoaded', function(playerId, xPlayer, isNew)
     loadPlayerAddictions(playerId)
     -- Sync current Config so client-side drug lookups / translations are correct
-    TriggerClientEvent('g4_addiction:syncConfig', playerId,
+    TriggerClientEvent('flake_addiction:syncConfig', playerId,
         Config.UsableDrugs, Config.Medication, Config.DrugImmunity, Config.Translations)
 end)
 
@@ -363,11 +363,11 @@ ESX.RegisterCommand('clearaddiction', 'admin', function(xPlayer, args, showError
     end
 
     playerAddictions[targetId] = {}
-    TriggerClientEvent('g4_addiction:data', targetId, {}, false)
+    TriggerClientEvent('flake_addiction:data', targetId, {}, false)
 
     local identifier = getIdentifier(targetId)
     if identifier then
-        MySQL.query('DELETE FROM g4_addiction WHERE identifier = ?', { identifier })
+        MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
     end
 
     TriggerClientEvent('esx:showNotification', xPlayer.source,
@@ -382,19 +382,19 @@ RegisterCommand('clearaddiction_console', function(src, args)
     if src ~= 0 then return end
     local targetId = tonumber(args[1])
     if not targetId then
-        print('[g4_addiction] Usage: clearaddiction_console <serverID>')
+        print('[flake_addiction] Usage: clearaddiction_console <serverID>')
         return
     end
 
     playerAddictions[targetId] = {}
-    TriggerClientEvent('g4_addiction:data', targetId, {}, false)
+    TriggerClientEvent('flake_addiction:data', targetId, {}, false)
 
     local identifier = getIdentifier(targetId)
     if identifier then
-        MySQL.query('DELETE FROM g4_addiction WHERE identifier = ?', { identifier })
+        MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
     end
 
-    print('[g4_addiction] Cleared addictions for player ' .. targetId)
+    print('[flake_addiction] Cleared addictions for player ' .. targetId)
 end, true)
 
 -- ═════════════════════════════════════════════════════════════════════════
@@ -416,7 +416,7 @@ local function readConfigJson()
     if not raw or raw == '' then return {} end
     local ok, parsed = pcall(json.decode, raw)
     if not ok or type(parsed) ~= 'table' then
-        print('[g4_addiction] WARNING: config.json is malformed — ignoring.')
+        print('[flake_addiction] WARNING: config.json is malformed — ignoring.')
         return {}
     end
     return parsed
@@ -501,12 +501,12 @@ local function getAdminGroup(src)
     return g
 end
 
-local function getDiscordId(src)
+local function getFivemId(src)
     local ids = GetPlayerIdentifiers(src)
     if not ids then return nil end
     for _, id in ipairs(ids) do
-        if id:sub(1, 8) == 'discord:' then
-            return id:sub(9)
+        if id:sub(1, 6) == 'fivem:' then
+            return id:sub(7)
         end
     end
     return nil
@@ -537,8 +537,8 @@ local function registerSingleDrug(drugName, drugData)
             gotAddicted = true
         end
 
-        TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
-        TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
+        TriggerClientEvent('flake_addiction:useDrug', src, drugName, gotAddicted)
+        TriggerClientEvent('flake_addiction:data', src, buildClientData(src), true)
         startAddictionTimer(src)
     end)
 end
@@ -565,8 +565,8 @@ local function registerSingleMed(medName, curesDrugs)
             end
         end
 
-        TriggerClientEvent('g4_addiction:useMedication', src)
-        TriggerClientEvent('g4_addiction:data', src, buildClientData(src), false)
+        TriggerClientEvent('flake_addiction:useMedication', src)
+        TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
         savePlayerAddictions(src)
     end
     ESX.RegisterUsableItem(itemName, useMed)
@@ -575,7 +575,7 @@ end
 
 -- Push updated Config to all connected clients
 local function broadcastConfigSync()
-    TriggerClientEvent('g4_addiction:syncConfig', -1,
+    TriggerClientEvent('flake_addiction:syncConfig', -1,
         Config.UsableDrugs,
         Config.Medication,
         Config.DrugImmunity,
@@ -587,20 +587,20 @@ end
 -- Creator: open request (admin check)
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:requestOpen', function()
+RegisterNetEvent('flake_addiction:admin:requestOpen', function()
     local src = source
     if not isAdmin(src) then
         TriggerClientEvent('esx:showNotification', src, 'You do not have permission to use this.')
         return
     end
-    TriggerClientEvent('g4_addiction:admin:openCreator', src)
+    TriggerClientEvent('flake_addiction:admin:openCreator', src)
 end)
 
 -- ─────────────────────────────────────────
 -- Creator: get data
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:getData', function()
+RegisterNetEvent('flake_addiction:admin:getData', function()
     local src = source
     if not isAdmin(src) then return end
 
@@ -628,11 +628,10 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
         meds[k] = { cures = v, _source = adminMedKeys[k] and 'custom' or 'base' }
     end
 
-    local xPlayer   = ESX.GetPlayerFromId(src)
-    local discordId = getDiscordId(src)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local fivemId = getFivemId(src)
 
-    -- Resolve character name from the users table (firstname + lastname).
-    -- Falls back to the FiveM display name if the query fails or returns nothing.
+    -- Character name from the users table
     local charName = GetPlayerName(src)
     if xPlayer then
         local ok, rows = pcall(function()
@@ -645,25 +644,9 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
             local fn   = tostring(rows[1].firstname or ''):match('^%s*(.-)%s*$')
             local ln   = tostring(rows[1].lastname  or ''):match('^%s*(.-)%s*$')
             local full = (fn ~= '' and ln ~= '') and (fn .. ' ' .. ln)
-                      or (fn ~= '' and fn)
-                      or (ln ~= '' and ln)
-                      or nil
+                      or (fn ~= '' and fn) or (ln ~= '' and ln) or nil
             if full then charName = full end
         end
-    end
-
-    -- Build default Discord avatar URL from the snowflake ID alone (no bot token needed).
-    -- Discord's default avatar index = (user_id >> 22) % 6
-    local defaultDiscordAvatar = nil
-    if discordId then
-        local idNum = tonumber(discordId)
-        if idNum then
-            local idx = (idNum >> 22) % 6
-            defaultDiscordAvatar = 'https://cdn.discordapp.com/embed/avatars/' .. idx .. '.png'
-        end
-        print(('[g4_addiction] Creator opened by %s | Discord ID: %s'):format(charName, discordId))
-    else
-        print(('[g4_addiction] Creator opened by %s | No Discord identifier found'):format(charName))
     end
 
     local payload = {
@@ -674,37 +657,33 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
         firstRun     = not setupDone,
         uiColor      = Config.UIColor or '#7c6af7',
         player       = {
-            name               = charName,
-            serverId           = src,
-            adminGroup         = getAdminGroup(src),
-            discordId          = discordId,
-            avatarUrl          = nil,
-            defaultAvatarUrl   = defaultDiscordAvatar,
+            name       = charName,
+            serverId   = src,
+            adminGroup = getAdminGroup(src),
+            fivemId    = fivemId,
+            avatarUrl  = nil,
         },
     }
 
-    -- If a Discord bot token is configured, fetch their real avatar hash
-    if Config.DiscordBotToken and Config.DiscordBotToken ~= '' and discordId then
+    -- Fetch FiveM profile picture via the CFX forum API (numeric fivem: identifier
+    -- is the Discourse user ID — no authentication required for public profiles).
+    if fivemId then
         PerformHttpRequest(
-            'https://discord.com/api/v10/users/' .. discordId,
+            'https://forum.cfx.re/users/by-id/' .. fivemId .. '.json',
             function(status, body)
                 if status == 200 then
-                    local ok, user = pcall(json.decode, body)
-                    if ok and user and user.avatar then
-                        payload.player.avatarUrl =
-                            'https://cdn.discordapp.com/avatars/' .. discordId
-                            .. '/' .. user.avatar .. '.png?size=128'
+                    local ok, data = pcall(json.decode, body)
+                    if ok and data and data.user and data.user.avatar_template then
+                        local tmpl = data.user.avatar_template:gsub('{size}', '128')
+                        payload.player.avatarUrl = 'https://forum.cfx.re' .. tmpl
                     end
-                else
-                    print(('[g4_addiction] Discord API returned %d for user %s — check bot token'):format(status, discordId))
                 end
-                TriggerClientEvent('g4_addiction:admin:dataReady', src, payload)
+                TriggerClientEvent('flake_addiction:admin:dataReady', src, payload)
             end,
-            'GET', '',
-            { ['Authorization'] = 'Bot ' .. Config.DiscordBotToken }
+            'GET', '', {}
         )
     else
-        TriggerClientEvent('g4_addiction:admin:dataReady', src, payload)
+        TriggerClientEvent('flake_addiction:admin:dataReady', src, payload)
     end
 end)
 
@@ -712,25 +691,25 @@ end)
 -- Creator: save drug
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:saveDrug', function(data)
+RegisterNetEvent('flake_addiction:admin:saveDrug', function(data)
     local src = source
     if not isAdmin(src) then return end
 
     local key = data and data.key
     if type(key) ~= 'string' or key == '' then
-        TriggerClientEvent('g4_addiction:admin:saveDrugResponse', src, false, 'Invalid item name.')
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Invalid item name.')
         return
     end
 
     -- Prevent overwriting base config.lua entries
     if Config.UsableDrugs[key] and not adminDrugKeys[key] then
-        TriggerClientEvent('g4_addiction:admin:saveDrugResponse', src, false, 'Cannot overwrite a base config.lua drug.')
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Cannot overwrite a base config.lua drug.')
         return
     end
 
     local drug = data.drug
     if type(drug) ~= 'table' or not drug.label then
-        TriggerClientEvent('g4_addiction:admin:saveDrugResponse', src, false, 'Invalid drug data.')
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Invalid drug data.')
         return
     end
 
@@ -741,21 +720,21 @@ RegisterNetEvent('g4_addiction:admin:saveDrug', function(data)
     writeConfigJson()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:saveDrugResponse', src, true, nil)
-    print(('[g4_addiction] Admin %s created/updated drug: %s'):format(GetPlayerName(src), key))
+    TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, true, nil)
+    print(('[flake_addiction] Admin %s created/updated drug: %s'):format(GetPlayerName(src), key))
 end)
 
 -- ─────────────────────────────────────────
 -- Creator: delete drug
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:deleteDrug', function(data)
+RegisterNetEvent('flake_addiction:admin:deleteDrug', function(data)
     local src = source
     if not isAdmin(src) then return end
 
     local key = data and data.key
     if not adminDrugKeys[key] then
-        TriggerClientEvent('g4_addiction:admin:deleteDrugResponse', src, false, 'Can only delete admin-created drugs.')
+        TriggerClientEvent('flake_addiction:admin:deleteDrugResponse', src, false, 'Can only delete admin-created drugs.')
         return
     end
 
@@ -765,15 +744,15 @@ RegisterNetEvent('g4_addiction:admin:deleteDrug', function(data)
     writeConfigJson()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:deleteDrugResponse', src, true, nil)
-    print(('[g4_addiction] Admin %s deleted drug: %s'):format(GetPlayerName(src), key))
+    TriggerClientEvent('flake_addiction:admin:deleteDrugResponse', src, true, nil)
+    print(('[flake_addiction] Admin %s deleted drug: %s'):format(GetPlayerName(src), key))
 end)
 
 -- ─────────────────────────────────────────
 -- Creator: save medication
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:saveMedication', function(data)
+RegisterNetEvent('flake_addiction:admin:saveMedication', function(data)
     local src = source
     if not isAdmin(src) then return end
 
@@ -781,12 +760,12 @@ RegisterNetEvent('g4_addiction:admin:saveMedication', function(data)
     local cures = data and data.cures
 
     if type(name) ~= 'string' or name == '' then
-        TriggerClientEvent('g4_addiction:admin:saveMedResponse', src, false, 'Invalid medication name.')
+        TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, false, 'Invalid medication name.')
         return
     end
 
     if Config.Medication[name] and not adminMedKeys[name] then
-        TriggerClientEvent('g4_addiction:admin:saveMedResponse', src, false, 'Cannot overwrite a base config.lua medication.')
+        TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, false, 'Cannot overwrite a base config.lua medication.')
         return
     end
 
@@ -799,20 +778,20 @@ RegisterNetEvent('g4_addiction:admin:saveMedication', function(data)
     writeConfigJson()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:saveMedResponse', src, true, nil)
+    TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, true, nil)
 end)
 
 -- ─────────────────────────────────────────
 -- Creator: delete medication
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:deleteMedication', function(data)
+RegisterNetEvent('flake_addiction:admin:deleteMedication', function(data)
     local src = source
     if not isAdmin(src) then return end
 
     local name = data and data.name
     if not adminMedKeys[name] then
-        TriggerClientEvent('g4_addiction:admin:deleteMedResponse', src, false, 'Can only delete admin-created medications.')
+        TriggerClientEvent('flake_addiction:admin:deleteMedResponse', src, false, 'Can only delete admin-created medications.')
         return
     end
 
@@ -822,14 +801,14 @@ RegisterNetEvent('g4_addiction:admin:deleteMedication', function(data)
     writeConfigJson()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:deleteMedResponse', src, true, nil)
+    TriggerClientEvent('flake_addiction:admin:deleteMedResponse', src, true, nil)
 end)
 
 -- ─────────────────────────────────────────
 -- Creator: save settings
 -- ─────────────────────────────────────────
 
-RegisterNetEvent('g4_addiction:admin:saveSettings', function(data)
+RegisterNetEvent('flake_addiction:admin:saveSettings', function(data)
     local src = source
     if not isAdmin(src) then return end
 
@@ -846,7 +825,7 @@ RegisterNetEvent('g4_addiction:admin:saveSettings', function(data)
     writeConfigJson()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:saveSettingsResponse', src, true, nil)
+    TriggerClientEvent('flake_addiction:admin:saveSettingsResponse', src, true, nil)
 end)
 
 -- ─────────────────────────────────────────
@@ -878,7 +857,7 @@ local function buildFullDataPayload(src)
     }
 end
 
-RegisterNetEvent('g4_addiction:admin:applyPreset', function()
+RegisterNetEvent('flake_addiction:admin:applyPreset', function()
     local src = source
     if not isAdmin(src) then return end
 
@@ -893,17 +872,17 @@ RegisterNetEvent('g4_addiction:admin:applyPreset', function()
     registerItems()
     broadcastConfigSync()
 
-    print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' applied preset configuration.')
+    print('[flake_addiction] Admin ' .. GetPlayerName(src) .. ' applied preset configuration.')
 end)
 
-RegisterNetEvent('g4_addiction:admin:declinePreset', function()
+RegisterNetEvent('flake_addiction:admin:declinePreset', function()
     local src = source
     if not isAdmin(src) then return end
 
     setupDone = true
     writeConfigJson()
 
-    print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
+    print('[flake_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
 end)
 
 -- ─────────────────────────────────────────
@@ -931,13 +910,13 @@ local function doResetInstall(callerName)
     SaveResourceFile(GetCurrentResourceName(), CONFIG_JSON, encoded, -1)
 
     -- Push cleared config to all connected clients
-    TriggerClientEvent('g4_addiction:syncConfig', -1, {}, {}, 100, {})
+    TriggerClientEvent('flake_addiction:syncConfig', -1, {}, {}, 100, {})
 
-    print('[g4_addiction] Install reset by ' .. callerName .. '. Welcome modal will show on next /addictioncreator.')
+    print('[flake_addiction] Install reset by ' .. callerName .. '. Welcome modal will show on next /addictioncreator.')
 end
 
 -- In-game command (admin group required)
-RegisterNetEvent('g4_addiction:admin:resetInstall', function()
+RegisterNetEvent('flake_addiction:admin:resetInstall', function()
     local src = source
     if not isAdmin(src) then
         TriggerClientEvent('esx:showNotification', src, 'No permission.')

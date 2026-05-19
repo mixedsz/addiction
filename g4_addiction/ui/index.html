@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-  <title>g4_addiction</title>
+  <title>flake_addiction</title>
   <script type="module" crossorigin src="./assets/index-8db74cb8.js"></script>
   <link rel="stylesheet" href="./assets/index-86d33a41.css">
 </head>
@@ -50,7 +50,7 @@
 
       if (e.data.type === 'creatorRequestClose') {
         wrap.style.display = 'none';
-        fetch('https://g4_addiction/creatorClosed', {
+        fetch('https://flake_addiction/creatorClosed', {
           method: 'POST',
           body: JSON.stringify({})
         }).catch(function () {});

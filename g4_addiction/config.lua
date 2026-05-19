@@ -1,9 +1,8 @@
 Config = {}
 
 -- ── Edit these settings to configure the resource ───────────────────────
-Config.UIColor          = '#7c6af7'  -- Accent colour for the Addiction Creator panel
-Config.AdminGroups      = { 'admin', 'superadmin', 'owner' }
-Config.DiscordBotToken  = ''         -- Optional: paste a Discord bot token to show admin avatars in the Creator panel
+Config.UIColor     = '#7c6af7'  -- Accent colour for the Addiction Creator panel
+Config.AdminGroups = { 'admin', 'superadmin', 'owner' }
 
 -- ── Managed entirely by the Addiction Creator UI (/addictioncreator) ────
 -- ── Do NOT edit these manually — use the in-game panel instead          ──

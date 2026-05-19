@@ -2,7 +2,8 @@
 
 fx_version 'cerulean'
 game 'gta5'
-description 'g4_addiction'
+name 'flake_addiction'
+description 'Flake Addiction System'
 
 shared_scripts {
     'config.lua'

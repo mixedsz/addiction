@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS `g4_addiction` (
+CREATE TABLE IF NOT EXISTS `flake_addiction` (
     `identifier`     VARCHAR(60)  NOT NULL,
     `drug`           VARCHAR(50)  NOT NULL,
     `remaining_time` INT          NOT NULL DEFAULT 0,
