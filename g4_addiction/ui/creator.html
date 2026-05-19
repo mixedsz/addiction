@@ -1394,12 +1394,10 @@ async function applyPreset() {
   document.getElementById('btn-preset').textContent = 'Applying…';
   const res = await nui('creatorApplyPreset');
   if (res?.ok) {
-    if (res.drugs)        S.drugs        = res.drugs;
-    if (res.meds)         S.meds         = res.meds;
-    if (res.drugImmunity) S.immunity     = res.drugImmunity;
-    if (res.translations) S.translations = res.translations;
     document.getElementById('welcome-modal').classList.remove('show');
-    renderDashboard();
+    // Reload all data fresh from server now that preset is saved
+    await loadData();
+    nav('drugs');
     toast('Preset configuration applied — 9 drugs and 4 medications loaded.');
   } else {
     toast(res?.error || 'Failed to apply preset.', 'err');
@@ -1412,6 +1410,7 @@ async function declinePreset() {
   document.getElementById('btn-manual').disabled = true;
   await nui('creatorDeclinePreset');
   document.getElementById('welcome-modal').classList.remove('show');
+  nav('create');
   toast('Manual setup selected — create your first drug to get started.');
 }
 
@@ -1429,9 +1428,6 @@ document.addEventListener('keydown', e => {
 window.addEventListener('message', e => {
   if (e.data?.type === 'creatorOpen') loadData();
 });
-
-// Also try on first load in case the message already fired
-loadData();
 </script>
 </body>
 </html>

@@ -8,7 +8,8 @@ RegisterNetEvent('g4_addiction:admin:deleteDrugResponse')
 RegisterNetEvent('g4_addiction:admin:saveMedResponse')
 RegisterNetEvent('g4_addiction:admin:deleteMedResponse')
 RegisterNetEvent('g4_addiction:admin:saveSettingsResponse')
-RegisterNetEvent('g4_addiction:admin:presetDone')
+RegisterNetEvent('g4_addiction:admin:applyPresetAck')
+RegisterNetEvent('g4_addiction:admin:declinePresetAck')
 RegisterNetEvent('g4_addiction:syncConfig')
 
 -- ── Open / close ──────────────────────────────────────────────────────────
@@ -158,25 +159,37 @@ end)
 -- ── First-run preset NUI callbacks ────────────────────────────────────────
 
 RegisterNuiCallback('creatorApplyPreset', function(_, cb)
+    local fired = false
     local handlerRef
-    handlerRef = AddEventHandler('g4_addiction:admin:presetDone', function(data)
+    handlerRef = AddEventHandler('g4_addiction:admin:applyPresetAck', function()
+        if fired then return end
+        fired = true
         RemoveEventHandler(handlerRef); handlerRef = nil
-        cb(data)
+        cb({ ok = true })
     end)
     TriggerServerEvent('g4_addiction:admin:applyPreset')
     SetTimeout(10000, function()
-        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil; cb({ ok = false, error = 'Timeout' }) end
+        if fired then return end
+        fired = true
+        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil end
+        cb({ ok = false, error = 'Timeout' })
     end)
 end)
 
 RegisterNuiCallback('creatorDeclinePreset', function(_, cb)
+    local fired = false
     local handlerRef
-    handlerRef = AddEventHandler('g4_addiction:admin:presetDone', function(data)
+    handlerRef = AddEventHandler('g4_addiction:admin:declinePresetAck', function()
+        if fired then return end
+        fired = true
         RemoveEventHandler(handlerRef); handlerRef = nil
         cb({ ok = true })
     end)
     TriggerServerEvent('g4_addiction:admin:declinePreset')
     SetTimeout(6000, function()
-        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil; cb({ ok = true }) end
+        if fired then return end
+        fired = true
+        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil end
+        cb({ ok = true })
     end)
 end)
