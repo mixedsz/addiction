@@ -467,6 +467,27 @@ local function isAdmin(src)
     return false
 end
 
+local function getAdminGroup(src)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if not xPlayer then return 'admin' end
+    local g = xPlayer.getGroup()
+    for _, allowed in ipairs(Config.AdminGroups) do
+        if g == allowed then return g end
+    end
+    return g
+end
+
+local function getDiscordId(src)
+    local ids = GetPlayerIdentifiers(src)
+    if not ids then return nil end
+    for _, id in ipairs(ids) do
+        if id:sub(1, 8) == 'discord:' then
+            return id:sub(9)
+        end
+    end
+    return nil
+end
+
 -- Register a single drug as a useable item (used when admin creates a new one live)
 local function registerSingleDrug(drugName, drugData)
     ESX.RegisterUsableItem(drugName, function(source)
@@ -583,14 +604,46 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
         meds[k] = { cures = v, _source = adminMedKeys[k] and 'custom' or 'base' }
     end
 
-    TriggerClientEvent('g4_addiction:admin:dataReady', src, {
+    local xPlayer   = ESX.GetPlayerFromId(src)
+    local discordId = getDiscordId(src)
+
+    local payload = {
         drugs        = drugs,
         meds         = meds,
         drugImmunity = Config.DrugImmunity,
         translations = Config.Translations,
         firstRun     = not setupDone,
         uiColor      = Config.UIColor or '#7c6af7',
-    })
+        player       = {
+            name       = GetPlayerName(src),
+            serverId   = src,
+            adminGroup = getAdminGroup(src),
+            discordId  = discordId,
+            avatarUrl  = nil,
+        },
+    }
+
+    -- If a Discord bot token is configured, fetch the real avatar hash
+    if Config.DiscordBotToken ~= '' and discordId then
+        PerformHttpRequest(
+            'https://discord.com/api/v10/users/' .. discordId,
+            function(status, body)
+                if status == 200 then
+                    local ok, user = pcall(json.decode, body)
+                    if ok and user and user.avatar then
+                        payload.player.avatarUrl =
+                            'https://cdn.discordapp.com/avatars/' .. discordId
+                            .. '/' .. user.avatar .. '.png?size=128'
+                    end
+                end
+                TriggerClientEvent('g4_addiction:admin:dataReady', src, payload)
+            end,
+            'GET', '',
+            { ['Authorization'] = 'Bot ' .. Config.DiscordBotToken }
+        )
+    else
+        TriggerClientEvent('g4_addiction:admin:dataReady', src, payload)
+    end
 end)
 
 -- ─────────────────────────────────────────
