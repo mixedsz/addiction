@@ -631,6 +631,41 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
     local xPlayer   = ESX.GetPlayerFromId(src)
     local discordId = getDiscordId(src)
 
+    -- Resolve character name from the users table (firstname + lastname).
+    -- Falls back to the FiveM display name if the query fails or returns nothing.
+    local charName = GetPlayerName(src)
+    if xPlayer then
+        local ok, rows = pcall(function()
+            return MySQL.query.await(
+                'SELECT firstname, lastname FROM users WHERE identifier = ?',
+                { xPlayer.identifier }
+            )
+        end)
+        if ok and rows and rows[1] then
+            local fn   = tostring(rows[1].firstname or ''):match('^%s*(.-)%s*$')
+            local ln   = tostring(rows[1].lastname  or ''):match('^%s*(.-)%s*$')
+            local full = (fn ~= '' and ln ~= '') and (fn .. ' ' .. ln)
+                      or (fn ~= '' and fn)
+                      or (ln ~= '' and ln)
+                      or nil
+            if full then charName = full end
+        end
+    end
+
+    -- Build default Discord avatar URL from the snowflake ID alone (no bot token needed).
+    -- Discord's default avatar index = (user_id >> 22) % 6
+    local defaultDiscordAvatar = nil
+    if discordId then
+        local idNum = tonumber(discordId)
+        if idNum then
+            local idx = (idNum >> 22) % 6
+            defaultDiscordAvatar = 'https://cdn.discordapp.com/embed/avatars/' .. idx .. '.png'
+        end
+        print(('[g4_addiction] Creator opened by %s | Discord ID: %s'):format(charName, discordId))
+    else
+        print(('[g4_addiction] Creator opened by %s | No Discord identifier found'):format(charName))
+    end
+
     local payload = {
         drugs        = drugs,
         meds         = meds,
@@ -639,16 +674,17 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
         firstRun     = not setupDone,
         uiColor      = Config.UIColor or '#7c6af7',
         player       = {
-            name       = GetPlayerName(src),
-            serverId   = src,
-            adminGroup = getAdminGroup(src),
-            discordId  = discordId,
-            avatarUrl  = nil,
+            name               = charName,
+            serverId           = src,
+            adminGroup         = getAdminGroup(src),
+            discordId          = discordId,
+            avatarUrl          = nil,
+            defaultAvatarUrl   = defaultDiscordAvatar,
         },
     }
 
-    -- If a Discord bot token is configured, fetch the real avatar hash
-    if Config.DiscordBotToken ~= '' and discordId then
+    -- If a Discord bot token is configured, fetch their real avatar hash
+    if Config.DiscordBotToken and Config.DiscordBotToken ~= '' and discordId then
         PerformHttpRequest(
             'https://discord.com/api/v10/users/' .. discordId,
             function(status, body)
@@ -659,6 +695,8 @@ RegisterNetEvent('g4_addiction:admin:getData', function()
                             'https://cdn.discordapp.com/avatars/' .. discordId
                             .. '/' .. user.avatar .. '.png?size=128'
                     end
+                else
+                    print(('[g4_addiction] Discord API returned %d for user %s — check bot token'):format(status, discordId))
                 end
                 TriggerClientEvent('g4_addiction:admin:dataReady', src, payload)
             end,

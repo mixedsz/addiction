@@ -1134,15 +1134,20 @@ function renderProfile(player) {
   nameEl.textContent = player.name || '—';
   idEl.textContent   = `Server ID: ${player.serverId}`;
 
-  // Avatar — initials first, then overlay Discord photo if available
+  // Avatar priority: bot-token photo → default Discord CDN avatar → initials
   avatarEl.innerHTML = '';
   avatarEl.style.background = '';
-  setInitialsAvatar(avatarEl, player.name);
-  if (player.avatarUrl) {
+  const photoUrl = player.avatarUrl || player.defaultAvatarUrl || null;
+  if (photoUrl) {
     const img = document.createElement('img');
-    img.src = player.avatarUrl;
-    img.onerror = () => img.remove();
+    img.src = photoUrl;
+    // If the CDN image fails, fall back to initials
+    img.onerror = () => { img.remove(); setInitialsAvatar(avatarEl, player.name); };
+    // Initials behind in case the image is still loading
+    setInitialsAvatar(avatarEl, player.name);
     avatarEl.appendChild(img);
+  } else {
+    setInitialsAvatar(avatarEl, player.name);
   }
 
   // Badges
