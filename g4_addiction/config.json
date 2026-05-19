@@ -1,6 +1,6 @@
 {
     "drugs": {},
     "meds": {},
-    "drugImmunity": null,
+    "drugImmunity": 100,
     "translations": {}
 }

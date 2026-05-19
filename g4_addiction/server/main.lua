@@ -792,3 +792,54 @@ RegisterNetEvent('g4_addiction:admin:declinePreset', function()
     TriggerClientEvent('g4_addiction:admin:presetDone', src, { ok = true })
     print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
 end)
+
+-- ─────────────────────────────────────────
+-- /resetaddictioninstall  (in-game admin + server console)
+-- Wipes config.json, resets all runtime state, and forces the
+-- first-run welcome modal to appear next time any admin opens the panel.
+-- ─────────────────────────────────────────
+
+local function doResetInstall(callerName)
+    -- Clear runtime drug / med tables
+    for k in pairs(Config.UsableDrugs)  do Config.UsableDrugs[k]  = nil end
+    for k in pairs(Config.Medication)   do Config.Medication[k]   = nil end
+    for k in pairs(Config.Translations) do Config.Translations[k] = nil end
+    Config.DrugImmunity = 100
+
+    -- Clear source-tracking sets
+    for k in pairs(adminDrugKeys) do adminDrugKeys[k] = nil end
+    for k in pairs(adminMedKeys)  do adminMedKeys[k]  = nil end
+
+    -- Reset setup flag so the modal shows again
+    setupDone = false
+
+    -- Write a clean config.json with no setup flag
+    local encoded = json.encode({ drugs = {}, meds = {}, drugImmunity = 100, translations = {} }, { indent = true })
+    SaveResourceFile(GetCurrentResourceName(), CONFIG_JSON, encoded, -1)
+
+    -- Push cleared config to all connected clients
+    TriggerClientEvent('g4_addiction:syncConfig', -1, {}, {}, 100, {})
+
+    print('[g4_addiction] Install reset by ' .. callerName .. '. Welcome modal will show on next /addictioncreator.')
+end
+
+-- In-game command (admin group required)
+RegisterNetEvent('g4_addiction:admin:resetInstall', function()
+    local src = source
+    if not isAdmin(src) then
+        TriggerClientEvent('esx:showNotification', src, 'No permission.')
+        return
+    end
+    doResetInstall(GetPlayerName(src))
+    TriggerClientEvent('esx:showNotification', src, 'Installation reset. Open /addictioncreator to run setup again.')
+end)
+
+RegisterCommand('resetaddictioninstall', function(src, args)
+    if src ~= 0 then
+        -- In-game: proxy through net event so admin check runs
+        TriggerNetEvent('g4_addiction:admin:resetInstall')
+    else
+        -- Server console: no player check needed
+        doResetInstall('server console')
+    end
+end, false)

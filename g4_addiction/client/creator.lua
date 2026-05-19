@@ -4,8 +4,11 @@ local creatorOpen = false
 
 RegisterCommand('addictioncreator', function()
     if creatorOpen then return end
-    -- Server validates admin status; if not admin server simply does not respond
     TriggerServerEvent('g4_addiction:admin:requestOpen')
+end, false)
+
+RegisterCommand('resetaddictioninstall', function()
+    TriggerServerEvent('g4_addiction:admin:resetInstall')
 end, false)
 
 RegisterNetEvent('g4_addiction:admin:openCreator', function()
