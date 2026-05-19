@@ -5,15 +5,38 @@ local immunity = 100
 local addicted = false
 local isSuffering = false
 
-RegisterNetEvent('g4_addiction:useMedication', function()
+-- Keep client-side Config in sync with the server whenever the resource
+-- restarts. The handler lives here (main.lua loads first) so it is
+-- registered before the requestSync server event fires at the bottom.
+RegisterNetEvent('flake_addiction:syncConfig')
+AddEventHandler('flake_addiction:syncConfig', function(drugs, meds, imm, translations)
+    for k in pairs(Config.UsableDrugs) do Config.UsableDrugs[k] = nil end
+    for k, v in pairs(drugs)           do Config.UsableDrugs[k] = v   end
+    Config.Medication   = meds
+    Config.DrugImmunity = imm
+    if translations then
+        for k, v in pairs(translations) do Config.Translations[k] = v end
+    end
+    local count = 0
+    for _ in pairs(Config.UsableDrugs) do count = count + 1 end
+    print(('[flake_addiction] syncConfig received — %d drug(s) active on client'):format(count))
+end)
+
+RegisterNetEvent('flake_addiction:useMedication', function()
     local playerPed = PlayerPedId()
     pill(playerPed)
     updateHUD()
 end)
 
-RegisterNetEvent('g4_addiction:useDrug', function(drugName, gotAddicted)
+RegisterNetEvent('flake_addiction:useDrug', function(drugName, gotAddicted)
     local player = PlayerId()
     local playerPed = PlayerPedId()
+    if not Config.UsableDrugs[drugName] then
+        -- Config.UsableDrugs is empty after a resource restart until syncConfig arrives.
+        -- This is a known symptom — the server will broadcast sync on start.
+        print(('[flake_addiction] useDrug: Config.UsableDrugs["%s"] is nil on client — waiting for syncConfig'):format(drugName))
+        return
+    end
     if Config.UsableDrugs[drugName] then
         drugsInUse = drugsInUse + 1
         if drugStrength < 0 then drugStrength = 0 end
@@ -153,7 +176,7 @@ function removeEffects(drugName)
     end
 end
 
-RegisterNetEvent('g4_addiction:data', function(data, use)
+RegisterNetEvent('flake_addiction:data', function(data, use)
     addictions = data
     if use then return end
     updateHUD()
@@ -202,3 +225,7 @@ function suffering()
         return
     end)
 end
+
+-- On every (re)start, pull current config from server immediately so
+-- Config.UsableDrugs is never stale when a player uses a drug.
+TriggerServerEvent('flake_addiction:requestSync')

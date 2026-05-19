@@ -1,0 +1,936 @@
+local ESX = nil
+
+TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+
+-- playerAddictions[source][drugName] = remaining_seconds (internal unit)
+local playerAddictions   = {}
+local playerTimerRunning = {}
+
+-- ─────────────────────────────────────────
+-- Preset drug / medication / translation data
+-- These are offered to admins on first run via the creator panel.
+-- ─────────────────────────────────────────
+
+local PRESET = {
+    drugImmunity = 100,
+    drugs = {
+        oxycodone_10mg = {
+            label = "Oxycodone 10mg", animation = 'pill', drugStrength = 6,
+            healthEffects = { armour = 0, health = 10 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "DrugsMichaelAliensFightIn", speedMultiplier = 0.8, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        oxycodone_30mg = {
+            label = "Oxycodone 30mg", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 30 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "RaceTurbo", speedMultiplier = 1.1, walkingStyle = "MOVE_M@DRUNK@moderatedrunk", cameraShakeIntensity = 1.0 }
+        },
+        alg = {
+            label = "ALG", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "RaceTurbo", speedMultiplier = 1.1, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        mdma = {
+            label = "MDMA", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 0, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "spectator5", speedMultiplier = 1.2, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        actavis = {
+            label = "Actavis", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 15, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.85, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        tris = {
+            label = "Tris", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 10, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 1.1, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        wockhardt = {
+            label = "Wockhardt", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 7, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.7, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        quagen = {
+            label = "Quagen", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 5, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "PPPurple", speedMultiplier = 0.7, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+        yellow = {
+            label = "Yellow", animation = 'pill', drugStrength = 8,
+            healthEffects = { armour = 5, health = 0 },
+            addiction = { chance = 0, time = 60 },
+            effect = { duration = 30, screenFX = "MenuMGTournamentIn", speedMultiplier = 0.85, walkingStyle = nil, cameraShakeIntensity = 1.0 }
+        },
+    },
+    meds = {
+        Naloxone   = { 'oxycodone_10mg', 'oxycodone_30mg', 'actavis', 'tris', 'wockhardt', 'quagen' },
+        Suboxone   = { 'oxycodone_10mg', 'oxycodone_30mg' },
+        Naltrexone = { 'mdma', 'alg', 'yellow' },
+        Methadone  = { 'oxycodone_10mg', 'oxycodone_30mg', 'actavis' },
+    },
+    translations = {
+        notification_header        = "Attention",
+        overdose_text              = "You have just",
+        overdose_highlighted_text  = "Overdosed",
+        overdose_description       = "Your body couldn't handle the amount of drugs that you took...",
+        addiction_text             = "You just got addicted to",
+        addiction_description      = "As the amount of the drug in the body decreases, you will feel worse, in order to cure the addiction, you must get the right type of cure.",
+    },
+}
+
+-- ─────────────────────────────────────────
+-- Database bootstrap
+-- ─────────────────────────────────────────
+
+MySQL.ready(function()
+    MySQL.query([[
+        CREATE TABLE IF NOT EXISTS `flake_addiction` (
+            `identifier`     VARCHAR(60)  NOT NULL,
+            `drug`           VARCHAR(50)  NOT NULL,
+            `remaining_time` INT          NOT NULL DEFAULT 0,
+            PRIMARY KEY (`identifier`, `drug`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
+end)
+
+-- ─────────────────────────────────────────
+-- Utility helpers
+-- ─────────────────────────────────────────
+
+local function getIdentifier(src)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if xPlayer then return xPlayer.identifier end
+    return nil
+end
+
+local function hasAnyAddiction(src)
+    if not playerAddictions[src] then return false end
+    for _ in pairs(playerAddictions[src]) do return true end
+    return false
+end
+
+-- Convert internal seconds → minutes for client HUD percentage math:
+--   percent = ceil( (v / addiction.time_minutes) * 100 )
+local function buildClientData(src)
+    local out = {}
+    if playerAddictions[src] then
+        for drug, secs in pairs(playerAddictions[src]) do
+            out[drug] = secs / 60.0
+        end
+    end
+    return out
+end
+
+-- ─────────────────────────────────────────
+-- Database I/O
+-- ─────────────────────────────────────────
+
+local function loadPlayerAddictions(src)
+    local identifier = getIdentifier(src)
+    if not identifier then return end
+
+    playerAddictions[src] = {}
+
+    local rows = MySQL.query.await(
+        'SELECT drug, remaining_time FROM flake_addiction WHERE identifier = ?',
+        { identifier }
+    )
+    if rows then
+        for _, row in ipairs(rows) do
+            if Config.UsableDrugs[row.drug] and row.remaining_time > 0 then
+                playerAddictions[src][row.drug] = row.remaining_time
+            end
+        end
+    end
+
+    TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
+    startAddictionTimer(src)
+end
+
+local function savePlayerAddictions(src)
+    local identifier = getIdentifier(src)
+    if not identifier then return end
+
+    MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
+
+    if not playerAddictions[src] then return end
+
+    for drug, remaining in pairs(playerAddictions[src]) do
+        -- persist negative values too so withdrawal state survives relog
+        MySQL.query(
+            'INSERT INTO flake_addiction (identifier, drug, remaining_time) VALUES (?, ?, ?)',
+            { identifier, drug, math.floor(remaining) }
+        )
+    end
+end
+
+-- ─────────────────────────────────────────
+-- Addiction countdown timer (per player)
+-- ─────────────────────────────────────────
+
+-- One tick per second. Keeps running while the player has any tracked drug
+-- (even when remaining_time <= 0) so the client sees the suffering state
+-- until a cure is applied.
+function startAddictionTimer(src)
+    if playerTimerRunning[src] then return end
+    playerTimerRunning[src] = true
+
+    Citizen.CreateThread(function()
+        while playerAddictions[src] and hasAnyAddiction(src) do
+            Wait(1000)
+            if not playerAddictions[src] then break end
+
+            for drug, remaining in pairs(playerAddictions[src]) do
+                -- floor at -3600 so the client keeps showing suffering state
+                -- without integer overflow on a very long session
+                if remaining > -3600 then
+                    playerAddictions[src][drug] = remaining - 1
+                end
+            end
+
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
+        end
+
+        playerTimerRunning[src] = nil
+    end)
+end
+
+-- ─────────────────────────────────────────
+-- Item registration (drugs + medications)
+-- Called on every resource start so new config entries are always picked up.
+-- After adding a drug to Config just `restart flake_addiction` — no server reboot.
+-- ─────────────────────────────────────────
+
+local function registerItems()
+    -- Drugs
+    for drugName, drugData in pairs(Config.UsableDrugs) do
+        ESX.RegisterUsableItem(drugName, function(source)
+            local src     = source
+            local xPlayer = ESX.GetPlayerFromId(src)
+            if not xPlayer then
+                print(('[flake_addiction] useDrug: no xPlayer for src %d'):format(src))
+                return
+            end
+
+            local item = xPlayer.getInventoryItem(drugName)
+            if not item or item.count <= 0 then
+                print(('[flake_addiction] useDrug: %s has no %s in inventory'):format(GetPlayerName(src), drugName))
+                return
+            end
+
+            if not drugData or not drugData.addiction then
+                print(('[flake_addiction] useDrug: drugData missing for %s — try restarting the resource'):format(drugName))
+                return
+            end
+
+            xPlayer.removeInventoryItem(drugName, 1)
+
+            if not playerAddictions[src] then playerAddictions[src] = {} end
+
+            local addictionSecs   = drugData.addiction.time * 60
+            local addictionChance = drugData.addiction.chance
+            local gotAddicted     = false
+
+            if playerAddictions[src][drugName] then
+                playerAddictions[src][drugName] = addictionSecs
+            elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
+                playerAddictions[src][drugName] = addictionSecs
+                gotAddicted = true
+            end
+
+            print(('[flake_addiction] %s used %s (addicted: %s)'):format(GetPlayerName(src), drugName, tostring(gotAddicted)))
+
+            TriggerClientEvent('flake_addiction:useDrug', src, drugName, gotAddicted)
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), true)
+
+            startAddictionTimer(src)
+        end)
+    end
+
+    -- Medications
+    -- Config keys are title-cased ("Naloxone"); register lowercase too since
+    -- ESX/ox_inventory item names are conventionally lowercase.
+    for medName, curesDrugs in pairs(Config.Medication) do
+        local itemName = medName:lower()
+
+        local function useMed(source)
+            local src     = source
+            local xPlayer = ESX.GetPlayerFromId(src)
+            if not xPlayer then return end
+
+            -- Accept either casing (some servers define items as "Naloxone",
+            -- others as "naloxone").
+            local item = xPlayer.getInventoryItem(itemName)
+            if not item or item.count <= 0 then
+                item = xPlayer.getInventoryItem(medName)
+            end
+            if not item or item.count <= 0 then return end
+
+            xPlayer.removeInventoryItem(item.name, 1)
+
+            if playerAddictions[src] then
+                for _, drug in ipairs(curesDrugs) do
+                    playerAddictions[src][drug] = nil
+                end
+            end
+
+            TriggerClientEvent('flake_addiction:useMedication', src)
+            TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
+
+            savePlayerAddictions(src)
+        end
+
+        ESX.RegisterUsableItem(itemName, useMed)
+        if medName ~= itemName then
+            ESX.RegisterUsableItem(medName, useMed)
+        end
+    end
+
+    local drugCount, medCount = 0, 0
+    for _ in pairs(Config.UsableDrugs)  do drugCount = drugCount + 1 end
+    for _ in pairs(Config.Medication)   do medCount  = medCount  + 1 end
+    print(('[flake_addiction] Registered %d drug(s) and %d medication(s) as useable items.'):format(drugCount, medCount))
+end
+
+AddEventHandler('onServerResourceStart', function(resourceName)
+    if GetCurrentResourceName() ~= resourceName then return end
+    TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+    mergeConfigJson()
+    Citizen.SetTimeout(500, registerItems)
+end)
+
+-- Each client fires this on their own script start, guaranteeing they
+-- get the current Config regardless of server-broadcast timing.
+RegisterNetEvent('flake_addiction:requestSync', function()
+    local src = source
+    TriggerClientEvent('flake_addiction:syncConfig', src,
+        Config.UsableDrugs,
+        Config.Medication,
+        Config.DrugImmunity,
+        Config.Translations
+    )
+    print(('[flake_addiction] Config synced to %s on script init (%d drug(s))'):format(
+        GetPlayerName(src),
+        (function() local n=0; for _ in pairs(Config.UsableDrugs) do n=n+1 end; return n end)()
+    ))
+end)
+
+-- ─────────────────────────────────────────
+-- Player lifecycle events
+-- ─────────────────────────────────────────
+
+AddEventHandler('esx:playerLoaded', function(playerId, xPlayer, isNew)
+    loadPlayerAddictions(playerId)
+    -- Sync current Config so client-side drug lookups / translations are correct
+    TriggerClientEvent('flake_addiction:syncConfig', playerId,
+        Config.UsableDrugs, Config.Medication, Config.DrugImmunity, Config.Translations)
+end)
+
+AddEventHandler('esx:playerDropped', function(playerId, reason)
+    if playerAddictions[playerId] then
+        savePlayerAddictions(playerId)
+    end
+    playerAddictions[playerId]   = nil
+    playerTimerRunning[playerId] = nil
+end)
+
+-- Safety-save on raw drop in case esx:playerDropped doesn't fire
+AddEventHandler('playerDropped', function()
+    local src = source
+    if playerAddictions[src] then
+        savePlayerAddictions(src)
+    end
+    playerAddictions[src]   = nil
+    playerTimerRunning[src] = nil
+end)
+
+-- ─────────────────────────────────────────
+-- Admin command: /clearaddiction [id]
+-- ─────────────────────────────────────────
+
+ESX.RegisterCommand('clearaddiction', 'admin', function(xPlayer, args, showError)
+    local targetId = tonumber(args.id)
+    if not targetId then
+        showError('Invalid player ID.')
+        return
+    end
+
+    playerAddictions[targetId] = {}
+    TriggerClientEvent('flake_addiction:data', targetId, {}, false)
+
+    local identifier = getIdentifier(targetId)
+    if identifier then
+        MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
+    end
+
+    TriggerClientEvent('esx:showNotification', xPlayer.source,
+        'Cleared addictions for player ' .. targetId .. '.')
+end, false, {
+    help      = 'Clear all drug addictions for a player',
+    arguments = { { name = 'id', help = 'Target player server ID', type = 'number' } }
+})
+
+-- Console/RCON variant
+RegisterCommand('clearaddiction_console', function(src, args)
+    if src ~= 0 then return end
+    local targetId = tonumber(args[1])
+    if not targetId then
+        print('[flake_addiction] Usage: clearaddiction_console <serverID>')
+        return
+    end
+
+    playerAddictions[targetId] = {}
+    TriggerClientEvent('flake_addiction:data', targetId, {}, false)
+
+    local identifier = getIdentifier(targetId)
+    if identifier then
+        MySQL.query('DELETE FROM flake_addiction WHERE identifier = ?', { identifier })
+    end
+
+    print('[flake_addiction] Cleared addictions for player ' .. targetId)
+end, true)
+
+-- ═════════════════════════════════════════════════════════════════════════
+-- ADDICTION CREATOR — admin panel backend
+-- ═════════════════════════════════════════════════════════════════════════
+
+local adminDrugKeys = {}
+local adminMedKeys  = {}
+local setupDone     = false  -- true once admin has made the first-run preset choice
+
+-- ─────────────────────────────────────────
+-- config.json load / save
+-- ─────────────────────────────────────────
+
+local CONFIG_JSON = 'config.json'
+
+local function readConfigJson()
+    local raw = LoadResourceFile(GetCurrentResourceName(), CONFIG_JSON)
+    if not raw or raw == '' then return {} end
+    local ok, parsed = pcall(json.decode, raw)
+    if not ok or type(parsed) ~= 'table' then
+        print('[flake_addiction] WARNING: config.json is malformed — ignoring.')
+        return {}
+    end
+    return parsed
+end
+
+function mergeConfigJson()
+    local data = readConfigJson()
+
+    -- setup flag: true once admin has completed first-run choice
+    if data.setup then setupDone = true end
+
+    if type(data.drugs) == 'table' then
+        for k, v in pairs(data.drugs) do
+            Config.UsableDrugs[k] = v
+            adminDrugKeys[k]      = true
+        end
+    end
+
+    if type(data.meds) == 'table' then
+        for k, v in pairs(data.meds) do
+            Config.Medication[k] = v
+            adminMedKeys[k]      = true
+        end
+    end
+
+    if type(data.drugImmunity) == 'number' then
+        Config.DrugImmunity = data.drugImmunity
+    end
+
+    if type(data.translations) == 'table' then
+        for k, v in pairs(data.translations) do
+            Config.Translations[k] = v
+        end
+    end
+
+    -- Always ensure default translations exist so client notifications work
+    -- even before an admin configures them
+    for k, v in pairs(PRESET.translations) do
+        if not Config.Translations[k] then Config.Translations[k] = v end
+    end
+end
+
+local function writeConfigJson()
+    local out = {
+        setup        = true,
+        drugs        = {},
+        meds         = {},
+        drugImmunity = Config.DrugImmunity,
+        translations = Config.Translations,
+    }
+    for k in pairs(adminDrugKeys) do
+        if Config.UsableDrugs[k] then out.drugs[k] = Config.UsableDrugs[k] end
+    end
+    for k in pairs(adminMedKeys) do
+        if Config.Medication[k] then out.meds[k] = Config.Medication[k] end
+    end
+    local encoded = json.encode(out, { indent = true })
+    SaveResourceFile(GetCurrentResourceName(), CONFIG_JSON, encoded, -1)
+end
+
+-- ─────────────────────────────────────────
+-- Helpers
+-- ─────────────────────────────────────────
+
+local function isAdmin(src)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if not xPlayer then return false end
+    local g = xPlayer.getGroup()
+    for _, allowed in ipairs(Config.AdminGroups) do
+        if g == allowed then return true end
+    end
+    return false
+end
+
+local function getAdminGroup(src)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if not xPlayer then return 'admin' end
+    local g = xPlayer.getGroup()
+    for _, allowed in ipairs(Config.AdminGroups) do
+        if g == allowed then return g end
+    end
+    return g
+end
+
+local function getFivemId(src)
+    local ids = GetPlayerIdentifiers(src)
+    if not ids then return nil end
+    for _, id in ipairs(ids) do
+        if id:sub(1, 6) == 'fivem:' then
+            return id:sub(7)
+        end
+    end
+    return nil
+end
+
+-- Register a single drug as a useable item (used when admin creates a new one live)
+local function registerSingleDrug(drugName, drugData)
+    ESX.RegisterUsableItem(drugName, function(source)
+        local src     = source
+        local xPlayer = ESX.GetPlayerFromId(src)
+        if not xPlayer then return end
+
+        local item = xPlayer.getInventoryItem(drugName)
+        if not item or item.count <= 0 then return end
+
+        xPlayer.removeInventoryItem(drugName, 1)
+
+        if not playerAddictions[src] then playerAddictions[src] = {} end
+
+        local addictionSecs   = drugData.addiction.time * 60
+        local addictionChance = drugData.addiction.chance
+        local gotAddicted     = false
+
+        if playerAddictions[src][drugName] then
+            playerAddictions[src][drugName] = addictionSecs
+        elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
+            playerAddictions[src][drugName] = addictionSecs
+            gotAddicted = true
+        end
+
+        TriggerClientEvent('flake_addiction:useDrug', src, drugName, gotAddicted)
+        TriggerClientEvent('flake_addiction:data', src, buildClientData(src), true)
+        startAddictionTimer(src)
+    end)
+end
+
+-- Register a single medication as a useable item
+local function registerSingleMed(medName, curesDrugs)
+    local itemName = medName:lower()
+    local function useMed(source)
+        local src     = source
+        local xPlayer = ESX.GetPlayerFromId(src)
+        if not xPlayer then return end
+
+        local item = xPlayer.getInventoryItem(itemName)
+        if not item or item.count <= 0 then
+            item = xPlayer.getInventoryItem(medName)
+        end
+        if not item or item.count <= 0 then return end
+
+        xPlayer.removeInventoryItem(item.name, 1)
+
+        if playerAddictions[src] then
+            for _, drug in ipairs(curesDrugs) do
+                playerAddictions[src][drug] = nil
+            end
+        end
+
+        TriggerClientEvent('flake_addiction:useMedication', src)
+        TriggerClientEvent('flake_addiction:data', src, buildClientData(src), false)
+        savePlayerAddictions(src)
+    end
+    ESX.RegisterUsableItem(itemName, useMed)
+    if medName ~= itemName then ESX.RegisterUsableItem(medName, useMed) end
+end
+
+-- Push updated Config to all connected clients
+local function broadcastConfigSync()
+    TriggerClientEvent('flake_addiction:syncConfig', -1,
+        Config.UsableDrugs,
+        Config.Medication,
+        Config.DrugImmunity,
+        Config.Translations
+    )
+end
+
+-- ─────────────────────────────────────────
+-- Creator: open request (admin check)
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:requestOpen', function()
+    local src = source
+    if not isAdmin(src) then
+        TriggerClientEvent('esx:showNotification', src, 'You do not have permission to use this.')
+        return
+    end
+    TriggerClientEvent('flake_addiction:admin:openCreator', src)
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: get data
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:getData', function()
+    local src = source
+    if not isAdmin(src) then return end
+
+    local drugs = {}
+    for k, v in pairs(Config.UsableDrugs) do
+        -- Deep copy so we don't mutate Config when adding _source
+        local entry = {}
+        for fk, fv in pairs(v) do entry[fk] = fv end
+        if type(v.healthEffects) == 'table' then
+            entry.healthEffects = { armour = v.healthEffects.armour, health = v.healthEffects.health }
+        end
+        if type(v.addiction) == 'table' then
+            entry.addiction = { chance = v.addiction.chance, time = v.addiction.time }
+        end
+        if type(v.effect) == 'table' then
+            entry.effect = {}
+            for ek, ev in pairs(v.effect) do entry.effect[ek] = ev end
+        end
+        entry._source = adminDrugKeys[k] and 'custom' or 'base'
+        drugs[k]      = entry
+    end
+
+    local meds = {}
+    for k, v in pairs(Config.Medication) do
+        meds[k] = { cures = v, _source = adminMedKeys[k] and 'custom' or 'base' }
+    end
+
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local fivemId = getFivemId(src)
+
+    -- Character name from the users table
+    local charName = GetPlayerName(src)
+    if xPlayer then
+        local ok, rows = pcall(function()
+            return MySQL.query.await(
+                'SELECT firstname, lastname FROM users WHERE identifier = ?',
+                { xPlayer.identifier }
+            )
+        end)
+        if ok and rows and rows[1] then
+            local fn   = tostring(rows[1].firstname or ''):match('^%s*(.-)%s*$')
+            local ln   = tostring(rows[1].lastname  or ''):match('^%s*(.-)%s*$')
+            local full = (fn ~= '' and ln ~= '') and (fn .. ' ' .. ln)
+                      or (fn ~= '' and fn) or (ln ~= '' and ln) or nil
+            if full then charName = full end
+        end
+    end
+
+    local payload = {
+        drugs        = drugs,
+        meds         = meds,
+        drugImmunity = Config.DrugImmunity,
+        translations = Config.Translations,
+        firstRun     = not setupDone,
+        uiColor      = Config.UIColor or '#7c6af7',
+        player       = {
+            name       = charName,
+            serverId   = src,
+            adminGroup = getAdminGroup(src),
+            fivemId    = fivemId,
+            avatarUrl  = nil,
+        },
+    }
+
+    -- Fetch FiveM profile picture via the CFX forum API (numeric fivem: identifier
+    -- is the Discourse user ID — no authentication required for public profiles).
+    if fivemId then
+        PerformHttpRequest(
+            'https://forum.cfx.re/users/by-id/' .. fivemId .. '.json',
+            function(status, body)
+                if status == 200 then
+                    local ok, data = pcall(json.decode, body)
+                    if ok and data and data.user and data.user.avatar_template then
+                        local tmpl = data.user.avatar_template:gsub('{size}', '128')
+                        payload.player.avatarUrl = 'https://forum.cfx.re' .. tmpl
+                    end
+                end
+                TriggerClientEvent('flake_addiction:admin:dataReady', src, payload)
+            end,
+            'GET', '', {}
+        )
+    else
+        TriggerClientEvent('flake_addiction:admin:dataReady', src, payload)
+    end
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: save drug
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:saveDrug', function(data)
+    local src = source
+    if not isAdmin(src) then return end
+
+    local key = data and data.key
+    if type(key) ~= 'string' or key == '' then
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Invalid item name.')
+        return
+    end
+
+    -- Prevent overwriting base config.lua entries
+    if Config.UsableDrugs[key] and not adminDrugKeys[key] then
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Cannot overwrite a base config.lua drug.')
+        return
+    end
+
+    local drug = data.drug
+    if type(drug) ~= 'table' or not drug.label then
+        TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, false, 'Invalid drug data.')
+        return
+    end
+
+    Config.UsableDrugs[key] = drug
+    adminDrugKeys[key]      = true
+
+    registerSingleDrug(key, drug)
+    writeConfigJson()
+    broadcastConfigSync()
+
+    TriggerClientEvent('flake_addiction:admin:saveDrugResponse', src, true, nil)
+    print(('[flake_addiction] Admin %s created/updated drug: %s'):format(GetPlayerName(src), key))
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: delete drug
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:deleteDrug', function(data)
+    local src = source
+    if not isAdmin(src) then return end
+
+    local key = data and data.key
+    if not adminDrugKeys[key] then
+        TriggerClientEvent('flake_addiction:admin:deleteDrugResponse', src, false, 'Can only delete admin-created drugs.')
+        return
+    end
+
+    Config.UsableDrugs[key] = nil
+    adminDrugKeys[key]      = nil
+
+    writeConfigJson()
+    broadcastConfigSync()
+
+    TriggerClientEvent('flake_addiction:admin:deleteDrugResponse', src, true, nil)
+    print(('[flake_addiction] Admin %s deleted drug: %s'):format(GetPlayerName(src), key))
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: save medication
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:saveMedication', function(data)
+    local src = source
+    if not isAdmin(src) then return end
+
+    local name  = data and data.name
+    local cures = data and data.cures
+
+    if type(name) ~= 'string' or name == '' then
+        TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, false, 'Invalid medication name.')
+        return
+    end
+
+    if Config.Medication[name] and not adminMedKeys[name] then
+        TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, false, 'Cannot overwrite a base config.lua medication.')
+        return
+    end
+
+    if type(cures) ~= 'table' then cures = {} end
+
+    Config.Medication[name] = cures
+    adminMedKeys[name]      = true
+
+    registerSingleMed(name, cures)
+    writeConfigJson()
+    broadcastConfigSync()
+
+    TriggerClientEvent('flake_addiction:admin:saveMedResponse', src, true, nil)
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: delete medication
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:deleteMedication', function(data)
+    local src = source
+    if not isAdmin(src) then return end
+
+    local name = data and data.name
+    if not adminMedKeys[name] then
+        TriggerClientEvent('flake_addiction:admin:deleteMedResponse', src, false, 'Can only delete admin-created medications.')
+        return
+    end
+
+    Config.Medication[name] = nil
+    adminMedKeys[name]      = nil
+
+    writeConfigJson()
+    broadcastConfigSync()
+
+    TriggerClientEvent('flake_addiction:admin:deleteMedResponse', src, true, nil)
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: save settings
+-- ─────────────────────────────────────────
+
+RegisterNetEvent('flake_addiction:admin:saveSettings', function(data)
+    local src = source
+    if not isAdmin(src) then return end
+
+    if type(data.drugImmunity) == 'number' and data.drugImmunity > 0 then
+        Config.DrugImmunity = data.drugImmunity
+    end
+
+    if type(data.translations) == 'table' then
+        for k, v in pairs(data.translations) do
+            Config.Translations[k] = v
+        end
+    end
+
+    writeConfigJson()
+    broadcastConfigSync()
+
+    TriggerClientEvent('flake_addiction:admin:saveSettingsResponse', src, true, nil)
+end)
+
+-- ─────────────────────────────────────────
+-- Creator: first-run preset choice
+-- ─────────────────────────────────────────
+
+local function buildFullDataPayload(src)
+    local drugs = {}
+    for k, v in pairs(Config.UsableDrugs) do
+        local entry = {}
+        for fk, fv in pairs(v) do entry[fk] = fv end
+        if type(v.healthEffects) == 'table' then entry.healthEffects = { armour = v.healthEffects.armour, health = v.healthEffects.health } end
+        if type(v.addiction)     == 'table' then entry.addiction     = { chance = v.addiction.chance, time = v.addiction.time } end
+        if type(v.effect)        == 'table' then entry.effect = {} for ek, ev in pairs(v.effect) do entry.effect[ek] = ev end end
+        entry._source = adminDrugKeys[k] and 'custom' or 'base'
+        drugs[k] = entry
+    end
+    local meds = {}
+    for k, v in pairs(Config.Medication) do
+        meds[k] = { cures = v, _source = adminMedKeys[k] and 'custom' or 'base' }
+    end
+    return {
+        ok           = true,
+        drugs        = drugs,
+        meds         = meds,
+        drugImmunity = Config.DrugImmunity,
+        translations = Config.Translations,
+        uiColor      = Config.UIColor or '#7c6af7',
+    }
+end
+
+RegisterNetEvent('flake_addiction:admin:applyPreset', function()
+    local src = source
+    if not isAdmin(src) then return end
+
+    -- Load all preset data into live Config
+    Config.DrugImmunity = PRESET.drugImmunity
+    for k, v in pairs(PRESET.drugs)         do Config.UsableDrugs[k] = v; adminDrugKeys[k] = true end
+    for k, v in pairs(PRESET.meds)          do Config.Medication[k]  = v; adminMedKeys[k]  = true end
+    for k, v in pairs(PRESET.translations)  do Config.Translations[k] = v end
+
+    setupDone = true
+    writeConfigJson()
+    registerItems()
+    broadcastConfigSync()
+
+    print('[flake_addiction] Admin ' .. GetPlayerName(src) .. ' applied preset configuration.')
+end)
+
+RegisterNetEvent('flake_addiction:admin:declinePreset', function()
+    local src = source
+    if not isAdmin(src) then return end
+
+    setupDone = true
+    writeConfigJson()
+
+    print('[flake_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
+end)
+
+-- ─────────────────────────────────────────
+-- /resetaddictioninstall  (in-game admin + server console)
+-- Wipes config.json, resets all runtime state, and forces the
+-- first-run welcome modal to appear next time any admin opens the panel.
+-- ─────────────────────────────────────────
+
+local function doResetInstall(callerName)
+    -- Clear runtime drug / med tables
+    for k in pairs(Config.UsableDrugs)  do Config.UsableDrugs[k]  = nil end
+    for k in pairs(Config.Medication)   do Config.Medication[k]   = nil end
+    for k in pairs(Config.Translations) do Config.Translations[k] = nil end
+    Config.DrugImmunity = 100
+
+    -- Clear source-tracking sets
+    for k in pairs(adminDrugKeys) do adminDrugKeys[k] = nil end
+    for k in pairs(adminMedKeys)  do adminMedKeys[k]  = nil end
+
+    -- Reset setup flag so the modal shows again
+    setupDone = false
+
+    -- Write a clean config.json with no setup flag
+    local encoded = json.encode({ drugs = {}, meds = {}, drugImmunity = 100, translations = {} }, { indent = true })
+    SaveResourceFile(GetCurrentResourceName(), CONFIG_JSON, encoded, -1)
+
+    -- Push cleared config to all connected clients
+    TriggerClientEvent('flake_addiction:syncConfig', -1, {}, {}, 100, {})
+
+    print('[flake_addiction] Install reset by ' .. callerName .. '. Welcome modal will show on next /addictioncreator.')
+end
+
+-- In-game command (admin group required)
+RegisterNetEvent('flake_addiction:admin:resetInstall', function()
+    local src = source
+    if not isAdmin(src) then
+        TriggerClientEvent('esx:showNotification', src, 'No permission.')
+        return
+    end
+    doResetInstall(GetPlayerName(src))
+    TriggerClientEvent('esx:showNotification', src, 'Installation reset. Open /addictioncreator to run setup again.')
+end)
+
+RegisterCommand('resetaddictioninstall', function(src, args)
+    if src ~= 0 then
+        -- In-game players use the client command which triggers the net event with proper admin check
+        return
+    end
+    -- Server console only
+    doResetInstall('server console')
+end, false)
