@@ -8,8 +8,6 @@ RegisterNetEvent('g4_addiction:admin:deleteDrugResponse')
 RegisterNetEvent('g4_addiction:admin:saveMedResponse')
 RegisterNetEvent('g4_addiction:admin:deleteMedResponse')
 RegisterNetEvent('g4_addiction:admin:saveSettingsResponse')
-RegisterNetEvent('g4_addiction:admin:applyPresetAck')
-RegisterNetEvent('g4_addiction:admin:declinePresetAck')
 RegisterNetEvent('g4_addiction:syncConfig')
 
 -- ── Open / close ──────────────────────────────────────────────────────────
@@ -157,39 +155,15 @@ RegisterNetEvent('g4_addiction:syncConfig', function(drugs, meds, immunity, tran
 end)
 
 -- ── First-run preset NUI callbacks ────────────────────────────────────────
+-- Respond immediately so the NUI fetch never hangs, then fire the server
+-- event asynchronously. The UI reloads data after a short delay.
 
 RegisterNuiCallback('creatorApplyPreset', function(_, cb)
-    local fired = false
-    local handlerRef
-    handlerRef = AddEventHandler('g4_addiction:admin:applyPresetAck', function()
-        if fired then return end
-        fired = true
-        RemoveEventHandler(handlerRef); handlerRef = nil
-        cb({ ok = true })
-    end)
+    cb({ ok = true })
     TriggerServerEvent('g4_addiction:admin:applyPreset')
-    SetTimeout(10000, function()
-        if fired then return end
-        fired = true
-        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil end
-        cb({ ok = false, error = 'Timeout' })
-    end)
 end)
 
 RegisterNuiCallback('creatorDeclinePreset', function(_, cb)
-    local fired = false
-    local handlerRef
-    handlerRef = AddEventHandler('g4_addiction:admin:declinePresetAck', function()
-        if fired then return end
-        fired = true
-        RemoveEventHandler(handlerRef); handlerRef = nil
-        cb({ ok = true })
-    end)
+    cb({ ok = true })
     TriggerServerEvent('g4_addiction:admin:declinePreset')
-    SetTimeout(6000, function()
-        if fired then return end
-        fired = true
-        if handlerRef then RemoveEventHandler(handlerRef); handlerRef = nil end
-        cb({ ok = true })
-    end)
 end)

@@ -1390,20 +1390,28 @@ function confirmResolve(val) {
 
 // ── First-run preset ─────────────────────────────────────────────────────
 async function applyPreset() {
-  document.getElementById('btn-preset').disabled = true;
-  document.getElementById('btn-preset').textContent = 'Applying…';
-  const res = await nui('creatorApplyPreset');
-  if (res?.ok) {
-    document.getElementById('welcome-modal').classList.remove('show');
-    // Reload all data fresh from server now that preset is saved
-    await loadData();
+  const btnPreset = document.getElementById('btn-preset');
+  btnPreset.disabled = true;
+  btnPreset.textContent = 'Applying…';
+  // NUI responds immediately; server processes event asynchronously
+  await nui('creatorApplyPreset');
+  document.getElementById('welcome-modal').classList.remove('show');
+  // Wait for server to finish processing, then refresh data silently
+  setTimeout(async () => {
+    const d = await nui('creatorGetData');
+    if (d) {
+      S.drugs        = d.drugs        || {};
+      S.meds         = d.meds         || {};
+      S.immunity     = d.drugImmunity || 100;
+      S.translations = d.translations || {};
+      if (d.uiColor) applyUIColor(d.uiColor);
+      renderDashboard();
+    }
     nav('drugs');
     toast('Preset configuration applied — 9 drugs and 4 medications loaded.');
-  } else {
-    toast(res?.error || 'Failed to apply preset.', 'err');
-    document.getElementById('btn-preset').disabled = false;
-    document.getElementById('btn-preset').textContent = 'Use Preset Config';
-  }
+    btnPreset.disabled = false;
+    btnPreset.textContent = 'Use Preset Config';
+  }, 600);
 }
 
 async function declinePreset() {
@@ -1412,6 +1420,7 @@ async function declinePreset() {
   document.getElementById('welcome-modal').classList.remove('show');
   nav('create');
   toast('Manual setup selected — create your first drug to get started.');
+  document.getElementById('btn-manual').disabled = false;
 }
 
 // ── Close ─────────────────────────────────────────────────────────────────

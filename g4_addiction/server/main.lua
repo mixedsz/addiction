@@ -778,7 +778,6 @@ RegisterNetEvent('g4_addiction:admin:applyPreset', function()
     registerItems()
     broadcastConfigSync()
 
-    TriggerClientEvent('g4_addiction:admin:applyPresetAck', src)
     print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' applied preset configuration.')
 end)
 
@@ -789,7 +788,6 @@ RegisterNetEvent('g4_addiction:admin:declinePreset', function()
     setupDone = true
     writeConfigJson()
 
-    TriggerClientEvent('g4_addiction:admin:declinePresetAck', src)
     print('[g4_addiction] Admin ' .. GetPlayerName(src) .. ' chose manual setup.')
 end)
 
