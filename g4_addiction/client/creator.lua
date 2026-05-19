@@ -1,5 +1,16 @@
 local creatorOpen = false
 
+-- Server response events must be declared as net events or FiveM blocks them
+RegisterNetEvent('g4_addiction:admin:openCreator')
+RegisterNetEvent('g4_addiction:admin:dataReady')
+RegisterNetEvent('g4_addiction:admin:saveDrugResponse')
+RegisterNetEvent('g4_addiction:admin:deleteDrugResponse')
+RegisterNetEvent('g4_addiction:admin:saveMedResponse')
+RegisterNetEvent('g4_addiction:admin:deleteMedResponse')
+RegisterNetEvent('g4_addiction:admin:saveSettingsResponse')
+RegisterNetEvent('g4_addiction:admin:presetDone')
+RegisterNetEvent('g4_addiction:syncConfig')
+
 -- ── Open / close ──────────────────────────────────────────────────────────
 
 RegisterCommand('addictioncreator', function()

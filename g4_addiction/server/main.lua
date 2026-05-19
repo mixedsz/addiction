@@ -836,10 +836,9 @@ end)
 
 RegisterCommand('resetaddictioninstall', function(src, args)
     if src ~= 0 then
-        -- In-game: proxy through net event so admin check runs
-        TriggerNetEvent('g4_addiction:admin:resetInstall')
-    else
-        -- Server console: no player check needed
-        doResetInstall('server console')
+        -- In-game players use the client command which triggers the net event with proper admin check
+        return
     end
+    -- Server console only
+    doResetInstall('server console')
 end, false)
