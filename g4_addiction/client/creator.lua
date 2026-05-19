@@ -141,22 +141,10 @@ end)
 -- Keeps client-side Config.UsableDrugs current after admin adds/removes drugs
 -- so the HUD and drug-use events continue working without a resource restart.
 
-RegisterNetEvent('g4_addiction:syncConfig', function(drugs, meds, immunity, translations)
-    -- Wipe and replace UsableDrugs
-    for k in pairs(Config.UsableDrugs) do Config.UsableDrugs[k] = nil end
-    for k, v in pairs(drugs) do Config.UsableDrugs[k] = v end
-
-    Config.Medication   = meds
-    Config.DrugImmunity = immunity
-
-    if translations then
-        for k, v in pairs(translations) do Config.Translations[k] = v end
-    end
-
-    local count = 0
-    for _ in pairs(Config.UsableDrugs) do count = count + 1 end
-    print(('[g4_addiction] syncConfig received — %d drug(s) now in client Config'):format(count))
-end)
+-- syncConfig is handled in client/main.lua (loaded first).
+-- The RegisterNetEvent declaration here keeps FiveM's net-safety check happy
+-- if any code in this file were ever to reference it directly.
+RegisterNetEvent('g4_addiction:syncConfig')
 
 -- ── First-run preset NUI callbacks ────────────────────────────────────────
 -- Respond immediately so the NUI fetch never hangs, then fire the server

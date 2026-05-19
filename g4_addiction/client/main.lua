@@ -5,6 +5,23 @@ local immunity = 100
 local addicted = false
 local isSuffering = false
 
+-- Keep client-side Config in sync with the server whenever the resource
+-- restarts. The handler lives here (main.lua loads first) so it is
+-- registered before the requestSync server event fires at the bottom.
+RegisterNetEvent('g4_addiction:syncConfig')
+AddEventHandler('g4_addiction:syncConfig', function(drugs, meds, imm, translations)
+    for k in pairs(Config.UsableDrugs) do Config.UsableDrugs[k] = nil end
+    for k, v in pairs(drugs)           do Config.UsableDrugs[k] = v   end
+    Config.Medication   = meds
+    Config.DrugImmunity = imm
+    if translations then
+        for k, v in pairs(translations) do Config.Translations[k] = v end
+    end
+    local count = 0
+    for _ in pairs(Config.UsableDrugs) do count = count + 1 end
+    print(('[g4_addiction] syncConfig received — %d drug(s) active on client'):format(count))
+end)
+
 RegisterNetEvent('g4_addiction:useMedication', function()
     local playerPed = PlayerPedId()
     pill(playerPed)
@@ -208,3 +225,7 @@ function suffering()
         return
     end)
 end
+
+-- On every (re)start, pull current config from server immediately so
+-- Config.UsableDrugs is never stale when a player uses a drug.
+TriggerServerEvent('g4_addiction:requestSync')

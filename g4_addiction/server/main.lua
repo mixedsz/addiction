@@ -301,17 +301,25 @@ end
 
 AddEventHandler('onServerResourceStart', function(resourceName)
     if GetCurrentResourceName() ~= resourceName then return end
-    -- Re-fetch ESX in case it was also restarted
     TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-    -- Merge config.json (admin-created drugs) into Config before registering items
     mergeConfigJson()
-    -- Register items once ESX is ready, then re-sync config to all connected clients
-    -- whose client scripts also restarted (resetting their Config.UsableDrugs to {}).
-    Citizen.SetTimeout(500, function()
-        registerItems()
-        -- Slight extra delay so client scripts have finished their own restart cycle
-        Citizen.SetTimeout(500, broadcastConfigSync)
-    end)
+    Citizen.SetTimeout(500, registerItems)
+end)
+
+-- Each client fires this on their own script start, guaranteeing they
+-- get the current Config regardless of server-broadcast timing.
+RegisterNetEvent('g4_addiction:requestSync', function()
+    local src = source
+    TriggerClientEvent('g4_addiction:syncConfig', src,
+        Config.UsableDrugs,
+        Config.Medication,
+        Config.DrugImmunity,
+        Config.Translations
+    )
+    print(('[g4_addiction] Config synced to %s on script init (%d drug(s))'):format(
+        GetPlayerName(src),
+        (function() local n=0; for _ in pairs(Config.UsableDrugs) do n=n+1 end; return n end)()
+    ))
 end)
 
 -- ─────────────────────────────────────────
