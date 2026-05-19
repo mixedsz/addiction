@@ -14,6 +14,12 @@ end)
 RegisterNetEvent('g4_addiction:useDrug', function(drugName, gotAddicted)
     local player = PlayerId()
     local playerPed = PlayerPedId()
+    if not Config.UsableDrugs[drugName] then
+        -- Config.UsableDrugs is empty after a resource restart until syncConfig arrives.
+        -- This is a known symptom — the server will broadcast sync on start.
+        print(('[g4_addiction] useDrug: Config.UsableDrugs["%s"] is nil on client — waiting for syncConfig'):format(drugName))
+        return
+    end
     if Config.UsableDrugs[drugName] then
         drugsInUse = drugsInUse + 1
         if drugStrength < 0 then drugStrength = 0 end

@@ -214,10 +214,21 @@ local function registerItems()
         ESX.RegisterUsableItem(drugName, function(source)
             local src     = source
             local xPlayer = ESX.GetPlayerFromId(src)
-            if not xPlayer then return end
+            if not xPlayer then
+                print(('[g4_addiction] useDrug: no xPlayer for src %d'):format(src))
+                return
+            end
 
             local item = xPlayer.getInventoryItem(drugName)
-            if not item or item.count <= 0 then return end
+            if not item or item.count <= 0 then
+                print(('[g4_addiction] useDrug: %s has no %s in inventory'):format(GetPlayerName(src), drugName))
+                return
+            end
+
+            if not drugData or not drugData.addiction then
+                print(('[g4_addiction] useDrug: drugData missing for %s — try restarting the resource'):format(drugName))
+                return
+            end
 
             xPlayer.removeInventoryItem(drugName, 1)
 
@@ -228,13 +239,13 @@ local function registerItems()
             local gotAddicted     = false
 
             if playerAddictions[src][drugName] then
-                -- Already tracked: refresh timer, buying another dose cycle.
                 playerAddictions[src][drugName] = addictionSecs
             elseif addictionChance > 0 and math.random(1, 100) <= addictionChance then
                 playerAddictions[src][drugName] = addictionSecs
                 gotAddicted = true
             end
-            -- addiction.chance == 0 → effects only, no addiction tracking
+
+            print(('[g4_addiction] %s used %s (addicted: %s)'):format(GetPlayerName(src), drugName, tostring(gotAddicted)))
 
             TriggerClientEvent('g4_addiction:useDrug', src, drugName, gotAddicted)
             TriggerClientEvent('g4_addiction:data', src, buildClientData(src), true)
@@ -294,8 +305,13 @@ AddEventHandler('onServerResourceStart', function(resourceName)
     TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
     -- Merge config.json (admin-created drugs) into Config before registering items
     mergeConfigJson()
-    -- Small wait to ensure ESX is fully ready before registering items
-    Citizen.SetTimeout(500, registerItems)
+    -- Register items once ESX is ready, then re-sync config to all connected clients
+    -- whose client scripts also restarted (resetting their Config.UsableDrugs to {}).
+    Citizen.SetTimeout(500, function()
+        registerItems()
+        -- Slight extra delay so client scripts have finished their own restart cycle
+        Citizen.SetTimeout(500, broadcastConfigSync)
+    end)
 end)
 
 -- ─────────────────────────────────────────

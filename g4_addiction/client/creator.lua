@@ -152,6 +152,10 @@ RegisterNetEvent('g4_addiction:syncConfig', function(drugs, meds, immunity, tran
     if translations then
         for k, v in pairs(translations) do Config.Translations[k] = v end
     end
+
+    local count = 0
+    for _ in pairs(Config.UsableDrugs) do count = count + 1 end
+    print(('[g4_addiction] syncConfig received — %d drug(s) now in client Config'):format(count))
 end)
 
 -- ── First-run preset NUI callbacks ────────────────────────────────────────
