@@ -1102,15 +1102,21 @@ function nav(page) {
   if (page === 'drugs')       renderDrugs();
   if (page === 'medications') renderMeds();
   if (page === 'settings')    loadSettings();
-  if (page === 'create')      resetForm();
+  // Pass the current editing key so nav('create') from editDrug() keeps
+  // the form populated. When navigating here fresh, S.editingDrug is null.
+  if (page === 'create')      resetForm(S.editingDrug);
 }
 
 document.querySelectorAll('.nav-item').forEach(el =>
-  el.addEventListener('click', () => nav(el.dataset.page))
+  el.addEventListener('click', () => {
+    // Clicking the sidebar nav always starts fresh — clear any in-progress edit
+    if (el.dataset.page === 'create') S.editingDrug = null;
+    nav(el.dataset.page);
+  })
 );
 
 function goCreate() {
-  resetForm();
+  S.editingDrug = null;
   nav('create');
 }
 
